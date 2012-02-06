@@ -1,13 +1,16 @@
 /* 
  * FunCube Dongle command line interface
  * David Pello EA1IDZ 2011
- * Pieter-Tjerk de Boer PA3FWM Sept. 2011: added LNA gain setting, auto-detect of units for frequency, reading current settings from dongle, (non-elegant) support for multiple dongles
+ * Pieter-Tjerk de Boer PA3FWM Sept. 2011: added LNA gain setting, auto-detect 
+ * of units for frequency, reading current settings from dongle, 
+ * (non-elegant) support for multiple dongles
  *
  * This code is licensed under a GNU GPL licensed
  * See LICENSE for information
  *
  */
 
+#define PROGRAM_VERSION "0.4"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -95,6 +98,7 @@ const char* program_name;
 
 void print_help()
 {
+        printf("FCDcontrol V %s\n", PROGRAM_VERSION);
 	printf("USAGE: %s options [arguments]\n", program_name);
 	printf("     -l   --list			List all FCDs in the system\n");
 	printf("     -s   --status			Gets FCD current status\n");

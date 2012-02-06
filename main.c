@@ -51,42 +51,42 @@ void print_list(void)
     while (phdi) {
         whichdongle=idx;
         printf("  %-3i  %-12s  ",idx, phdi->path);
-	int stat = fcdGetMode();
-	if (stat == FCD_MODE_NONE) printf("No FCD Detected.\n");
-	else if (stat == FCD_MODE_BL) printf("In bootloader mode.\n");
-	else {
-	    uint8_t lnagain;
-	    uint8_t freq[4];
-	    char version[20];
+        int stat = fcdGetMode();
+        if (stat == FCD_MODE_NONE) printf("No FCD Detected.\n");
+        else if (stat == FCD_MODE_BL) printf("In bootloader mode.\n");
+        else {
+            uint8_t lnagain;
+            uint8_t freq[4];
+            char version[20];
 
-	    // read version, frequency, gain
+            // read version, frequency, gain
             fcdGetFwVerStr(version);
-	    fcdAppGetParam(FCD_CMD_APP_GET_FREQ_HZ,freq,4);
-	    fcdAppGetParam(FCD_CMD_APP_GET_LNA_GAIN,&lnagain,1);
+            fcdAppGetParam(FCD_CMD_APP_GET_FREQ_HZ,freq,4);
+            fcdAppGetParam(FCD_CMD_APP_GET_LNA_GAIN,&lnagain,1);
 
-	    // try to find the corresponding audio device, by comparing the USB path to USB paths found under /proc/asound
-	    char audiopath[16]="(not found)";
-	    int usb1=-1,usb2=-1;
-	    sscanf(phdi->path,"%i:%i",&usb1,&usb2);
+            // try to find the corresponding audio device, by comparing the USB path to USB paths found under /proc/asound
+            char audiopath[16]="(not found)";
+            int usb1=-1,usb2=-1;
+            sscanf(phdi->path,"%i:%i",&usb1,&usb2);
 
-	    int i;
-	    for (i=0;i<16;i++) {
-               char s[32];        
-               sprintf(s,"/proc/asound/card%i/usbbus",i);
-               FILE *f;
-               f=fopen(s,"r");
-               if (f) {
-                  fgets(s,32,f);
-                  int u1=0,u2=0;
-	          sscanf(s,"%i/%i",&u1,&u2);
-                  fclose(f);
-                  if (u1==usb1 && u2==usb2) { sprintf(audiopath,"card%i",i); break; }
-               }
-	    }
+            int i;
+            for (i=0;i<16;i++) {
+                char s[32];        
+                sprintf(s,"/proc/asound/card%i/usbbus",i);
+                FILE *f;
+                f=fopen(s,"r");
+                if (f) {
+                    fgets(s,32,f);
+                    int u1=0,u2=0;
+                    sscanf(s,"%i/%i",&u1,&u2);
+                    fclose(f);
+                    if (u1==usb1 && u2==usb2) { sprintf(audiopath,"card%i",i); break; }
+                }
+            }
 
-	    // print our findings
-	    printf(" %-8s   %11.6f MHz   %4g dB     %s\n", version, (*(int *)freq)/1e6, lnagainvalues[lnagain], audiopath );
-	}
+            // print our findings
+            printf(" %-8s   %11.6f MHz   %4g dB     %s\n", version, (*(int *)freq)/1e6, lnagainvalues[lnagain], audiopath );
+        }
         idx++;
         phdi = phdi->next;
     }
@@ -98,162 +98,162 @@ const char* program_name;
 
 void print_help()
 {
-        printf("FCDcontrol V %s\n", PROGRAM_VERSION);
-	printf("USAGE: %s options [arguments]\n", program_name);
-	printf("     -l   --list			List all FCDs in the system\n");
-	printf("     -s   --status			Gets FCD current status\n");
-	printf("     -f   --frequency <frequency>	Sets FCD frequency in Hz, kHz or MHz\n");
-	printf("     -g   --gain <gain>			Sets LNA gain in dB\n");
-	printf("     -c   --correction <correction>	Sets frequency correction in ppm\n");
-	printf("     -i   --index <index>		Which dongle to show/set (default: 0, i.e. first)\n");
-	printf("     -h   --help       			Shows this help\n");
+    printf("FCDcontrol V %s\n", PROGRAM_VERSION);
+    printf("USAGE: %s options [arguments]\n", program_name);
+    printf("     -l   --list			List all FCDs in the system\n");
+    printf("     -s   --status			Gets FCD current status\n");
+    printf("     -f   --frequency <frequency>	Sets FCD frequency in Hz, kHz or MHz\n");
+    printf("     -g   --gain <gain>			Sets LNA gain in dB\n");
+    printf("     -c   --correction <correction>	Sets frequency correction in ppm\n");
+    printf("     -i   --index <index>		Which dongle to show/set (default: 0, i.e. first)\n");
+    printf("     -h   --help       			Shows this help\n");
 }
 
 void print_status()
 {
-	int stat;
-	char version[20];
+    int stat;
+    char version[20];
 
-	stat = fcdGetMode();
+    stat = fcdGetMode();
 
-	if (stat == FCD_MODE_NONE)
-	{
-		printf("No FCD Detected.\n");
-		return;
-	}
-	else if (stat == FCD_MODE_BL)
-	{
-		printf("FCD present in bootloader mode.\n");
-		return;
-	}
-	else	
-	{
-		printf("FCD present in application mode.\n");
-		stat = fcdGetFwVerStr(version);
-		printf("FCD firmware version: %s.\n", version);
-		unsigned char b[8];
-	        stat = fcdAppGetParam(FCD_CMD_APP_GET_FREQ_HZ,b,8);
-		printf("FCD frequency: %.6f MHz.\n", (*(int *)b)/1e6);
-	        stat = fcdAppGetParam(FCD_CMD_APP_GET_LNA_GAIN,b,1);
-		printf("FCD LNA gain: %g dB.\n", lnagainvalues[b[0]]);
-		return;
-	}
+    if (stat == FCD_MODE_NONE)
+    {
+        printf("No FCD Detected.\n");
+        return;
+    }
+    else if (stat == FCD_MODE_BL)
+    {
+        printf("FCD present in bootloader mode.\n");
+        return;
+    }
+    else	
+    {
+        printf("FCD present in application mode.\n");
+        stat = fcdGetFwVerStr(version);
+        printf("FCD firmware version: %s.\n", version);
+        unsigned char b[8];
+        stat = fcdAppGetParam(FCD_CMD_APP_GET_FREQ_HZ,b,8);
+        printf("FCD frequency: %.6f MHz.\n", (*(int *)b)/1e6);
+        stat = fcdAppGetParam(FCD_CMD_APP_GET_LNA_GAIN,b,1);
+        printf("FCD LNA gain: %g dB.\n", lnagainvalues[b[0]]);
+        return;
+    }
 }
 
 int main(int argc, char* argv[])
 {
-	int stat;
-	int freq = 0;
-	double freqf = 0;
-	int gain = -999;
-	int corr = 0;
-	int dolist = 0;
-	int dostatus = 0;
+    int stat;
+    int freq = 0;
+    double freqf = 0;
+    int gain = -999;
+    int corr = 0;
+    int dolist = 0;
+    int dostatus = 0;
 
-	/* getopt infrastructure */
-	int next_option;
-	const char* const short_options = "slg:f:c:i:h";
-	const struct option long_options[] =
-	{
-		{ "status", 0, NULL, 's' },
-		{ "list", 0, NULL, 'l' },
-		{ "frequency", 1, NULL, 'f' },
-		{ "index", 1, NULL, 'i' },
-		{ "gain", 1, NULL, 'g' },
-		{ "correction", 1, NULL, 'c' },
-		{ "help", 0, NULL, 'h' }
-	};
+    /* getopt infrastructure */
+    int next_option;
+    const char* const short_options = "slg:f:c:i:h";
+    const struct option long_options[] =
+    {
+        { "status", 0, NULL, 's' },
+        { "list", 0, NULL, 'l' },
+        { "frequency", 1, NULL, 'f' },
+        { "index", 1, NULL, 'i' },
+        { "gain", 1, NULL, 'g' },
+        { "correction", 1, NULL, 'c' },
+        { "help", 0, NULL, 'h' }
+    };
 
 
-	/* save program name */
-	program_name = argv[0];
+    /* save program name */
+    program_name = argv[0];
 
-	if (argc == 1)
-	{
-		print_help();
-		exit(EXIT_SUCCESS);
-	}
+    if (argc == 1)
+    {
+        print_help();
+        exit(EXIT_SUCCESS);
+    }
 
-	while(1)
-	{
-		/* call getopt */
-		next_option = getopt_long(argc, argv, short_options, long_options, NULL);
+    while(1)
+    {
+        /* call getopt */
+        next_option = getopt_long(argc, argv, short_options, long_options, NULL);
 
-		/* end of the options */
-		if (next_option == -1)
-			break;
+        /* end of the options */
+        if (next_option == -1)
+            break;
 
-		switch (next_option)
-		{
-			case 'h' :
-				print_help();
-				exit(EXIT_SUCCESS);
-			case 's' :
-				dostatus=1;
-				break;
-			case 'l' :
-				dolist=1;
-				break;
-			case 'f' :
-				freqf = atof(optarg);
-				break;
-			case 'g' :
-				gain = atoi(optarg);
-				break;
-			case 'i' :
-				whichdongle = atoi(optarg);
-				break;
-			case 'c' :
-				corr = atoi(optarg);
-				break;
-			case '?' :
-				print_help();
-				exit(1);
-			default :
-				abort();
-		}	
-	}
+        switch (next_option)
+        {
+            case 'h' :
+                print_help();
+                exit(EXIT_SUCCESS);
+            case 's' :
+                dostatus=1;
+                break;
+            case 'l' :
+                dolist=1;
+                break;
+            case 'f' :
+                freqf = atof(optarg);
+                break;
+            case 'g' :
+                gain = atoi(optarg);
+                break;
+            case 'i' :
+                whichdongle = atoi(optarg);
+                break;
+            case 'c' :
+                corr = atoi(optarg);
+                break;
+            case '?' :
+                print_help();
+                exit(1);
+            default :
+                abort();
+        }	
+    }
 
-	if (freqf>0) {
-        	if (freqf<10000) freqf*=1000;
-        	if (freqf<10000000) freqf*=1000;
-        	freq=freqf;
-		/* calculate frequency */
-		freq *= 1.0 + corr / 1000000.0;
-		
-		/* set it */
-		stat = fcdAppSetFreq(freq);
-		if (stat == FCD_MODE_NONE)
-		{
-			printf("No FCD Detected.\n");
-			return 1;
-		}
-		else if (stat == FCD_MODE_BL)
-		{
-			printf("FCD in bootloader mode.\n");
-			return 1;
-		}
-		else	
-		{
-			printf("Freq set to %.6f MHz.\n", freq/1e6);
-		}
-	}
+    if (freqf>0) {
+        if (freqf<10000) freqf*=1000;
+        if (freqf<10000000) freqf*=1000;
+        freq=freqf;
+        /* calculate frequency */
+        freq *= 1.0 + corr / 1000000.0;
 
-	if (gain>-999) {
-        	unsigned char b=0;
-        	while (b<sizeof(lnagainvalues)/sizeof(lnagainvalues[0]) && gain>lnagainvalues[b]+1) b++;
-		stat = fcdAppSetParam(FCD_CMD_APP_SET_LNA_GAIN,&b,1);
-		if (stat == FCD_MODE_NONE) { printf("No FCD Detected.\n"); return 1; }
-		else if (stat == FCD_MODE_BL) { printf("FCD in bootloader mode.\n"); return 1; }
-		else { printf("Gain set to %g dB.\n",lnagainvalues[b]); }
+        /* set it */
+        stat = fcdAppSetFreq(freq);
+        if (stat == FCD_MODE_NONE)
+        {
+            printf("No FCD Detected.\n");
+            return 1;
+        }
+        else if (stat == FCD_MODE_BL)
+        {
+            printf("FCD in bootloader mode.\n");
+            return 1;
+        }
+        else	
+        {
+            printf("Freq set to %.6f MHz.\n", freq/1e6);
+        }
+    }
 
-	}
+    if (gain>-999) {
+        unsigned char b=0;
+        while (b<sizeof(lnagainvalues)/sizeof(lnagainvalues[0]) && gain>lnagainvalues[b]+1) b++;
+        stat = fcdAppSetParam(FCD_CMD_APP_SET_LNA_GAIN,&b,1);
+        if (stat == FCD_MODE_NONE) { printf("No FCD Detected.\n"); return 1; }
+        else if (stat == FCD_MODE_BL) { printf("FCD in bootloader mode.\n"); return 1; }
+        else { printf("Gain set to %g dB.\n",lnagainvalues[b]); }
 
-	if (dolist) print_list();
+    }
 
-	if (dostatus) print_status();
+    if (dolist) print_list();
 
-	return EXIT_SUCCESS;
+    if (dostatus) print_status();
+
+    return EXIT_SUCCESS;
 
 
 }
