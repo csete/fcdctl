@@ -146,7 +146,11 @@ void print_status()
         stat = fcdAppGetParam(FCD_CMD_APP_GET_FREQ_HZ,b,8);
         printf("FCD frequency: %.6f MHz.\n", (*(int *)b)/1e6);
         stat = fcdAppGetParam(FCD_CMD_APP_GET_LNA_GAIN,b,1);
+#ifdef FCDPP
         printf("FCD LNA gain: %s.\n", b[0] == 1 ? "enabled" : "disabled");
+#else
+		printf("FCD LNA gain: %g dB.\n", lnagainvalues[b[0]]);
+#endif
         return;
     }
 }
