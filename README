@@ -10,6 +10,9 @@ This is a fast hack for a command line interface for funcube dongle,
 so I can use it in scripts and the like.
 I decided to publish it because I think it can be useful to some other people.
 
+This copy has been further hacked by Alexandru Csete OZ9AEC to make it work with
+the Funcube Dongle Pro+.
+
 FCD HID code is from QTHID so thank them:
 Howard Long G6LVB,
 Alexandru Csete OZ9AEC, 

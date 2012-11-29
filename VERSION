@@ -1,3 +1,6 @@
+0.4.1 - November 29, 2012:
+    Quick hack by Alexandru Csete OZ9AEC to make it work with Funcube Dongle Pro+
+
 0.4 - October 5, 2011:
         Fourth commit. Added selection in KHz and MHz, LNA Gain option, getting the frequency 
         from the FCD, and support multiple FCDs in the same computer.

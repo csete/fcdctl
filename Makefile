@@ -3,13 +3,12 @@ CC = gcc
 
 SOURCE = fcd.c hid-libusb.c main.c
 EXEC = fcdctl
-PREFIX = /usr/local
 
 all:
-	$(CC) $(LIBS) $(SOURCE) -o $(EXEC)
+	$(CC) $(SOURCE) $(LIBS) -o $(EXEC) -Wall
+
+fcdpp:
+	$(CC) -DFCDPP $(SOURCE) $(LIBS) -o $(EXEC) -Wall
 
 clean:
 	rm -rf *.o *~ $(EXEC) 
-
-install:
-	cp $(EXEC) $(PREFIX)/bin/

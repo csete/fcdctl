@@ -9,8 +9,11 @@
  * See LICENSE for information
  *
  */
-
-#define PROGRAM_VERSION "0.4"
+#ifdef FCDPP
+#define PROGRAM_VERSION "0.4.1-fcdpp"
+#else
+#define PROGRAM_VERSION "0.4.1"
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -32,8 +35,8 @@ void print_list(void)
 {
     // based on code from fcd.c
     struct hid_device_info *phdi=NULL;
-    hid_device *phd=NULL;
-    char *pszPath=NULL;
+    //hid_device *phd=NULL;
+    //char *pszPath=NULL;
 
     // look for all FCDs
     phdi=hid_enumerate(_usVID,_usPID);
@@ -85,7 +88,11 @@ void print_list(void)
             }
 
             // print our findings
-            printf(" %-8s   %11.6f MHz   %4g dB     %s\n", version, (*(int *)freq)/1e6, lnagainvalues[lnagain], audiopath );
+#ifdef FCDPP
+            printf(" %-8s   %11.6f MHz   %s    %s\n", version, (*(int *)freq)/1e6, lnagain ? "enabled" : "disabled", audiopath);
+#else
+            printf(" %-8s   %11.6f MHz   %4g dB     %s\n", version, (*(int *)freq)/1e6, lnagainvalues[lnagain], audiopath);
+#endif
         }
         idx++;
         phdi = phdi->next;
@@ -102,9 +109,13 @@ void print_help()
     printf("USAGE: %s options [arguments]\n", program_name);
     printf("     -l   --list			List all FCDs in the system\n");
     printf("     -s   --status			Gets FCD current status\n");
-    printf("     -f   --frequency <frequency>	Sets FCD frequency in Hz, kHz or MHz\n");
+    printf("     -f   --frequency <frequency>	Sets FCD frequency in MHz\n");
+#ifdef FCDPP
+    printf("     -g   --gain <gain>			Enable/disable LNA gain (0 or 1)\n");
+#else
     printf("     -g   --gain <gain>			Sets LNA gain in dB\n");
     printf("     -c   --correction <correction>	Sets frequency correction in ppm\n");
+#endif
     printf("     -i   --index <index>		Which dongle to show/set (default: 0, i.e. first)\n");
     printf("     -h   --help       			Shows this help\n");
 }
@@ -215,9 +226,9 @@ int main(int argc, char* argv[])
     }
 
     if (freqf>0) {
-        if (freqf<10000) freqf*=1000;
-        if (freqf<10000000) freqf*=1000;
-        freq=freqf;
+        /* MHz -> Hz */
+        freq = (int)(freqf * 1.0e6f);
+
         /* calculate frequency */
         freq *= 1.0 + corr / 1000000.0;
 
@@ -241,11 +252,19 @@ int main(int argc, char* argv[])
 
     if (gain>-999) {
         unsigned char b=0;
+#ifdef FCDPP
+        b = gain ? 0 : 1;
+#else
         while (b<sizeof(lnagainvalues)/sizeof(lnagainvalues[0]) && gain>lnagainvalues[b]+1) b++;
+#endif
         stat = fcdAppSetParam(FCD_CMD_APP_SET_LNA_GAIN,&b,1);
         if (stat == FCD_MODE_NONE) { printf("No FCD Detected.\n"); return 1; }
         else if (stat == FCD_MODE_BL) { printf("FCD in bootloader mode.\n"); return 1; }
-        else { printf("Gain set to %g dB.\n",lnagainvalues[b]); }
+#ifdef FCDPP
+        else printf("LNA gain %s.\n", b ? "enabled" : "disabled");
+#else
+        else printf("LNA gain set to %g dB.\n",lnagainvalues[b]);
+#endif
 
     }
 
