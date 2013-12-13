@@ -1,4 +1,4 @@
-LIBS = `pkg-config --libs --cflags libusb-1.0`
+LIBS = `pkg-config --libs --cflags libusb-1.0` -lpthread
 CC = gcc
 
 SOURCE = fcd.c hid-libusb.c main.c
