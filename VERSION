@@ -1,3 +1,7 @@
+0.4.2 - December 13, 2013:
+    Updated hidapi to latest version (should fix crashes).
+    Added -lpthread to Makefile.
+
 0.4.1 - November 29, 2012:
     Quick hack by Alexandru Csete OZ9AEC to make it work with Funcube Dongle Pro+
 
