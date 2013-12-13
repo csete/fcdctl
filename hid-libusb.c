@@ -14,7 +14,7 @@
 
  At the discretion of the user of this library,
  this software may be licensed under the terms of the
- GNU Public License v3, a BSD-Style license, or the
+ GNU General Public License v3, a BSD-Style license, or the
  original HIDAPI license as outlined in the LICENSE.txt,
  LICENSE-gpl3.txt, LICENSE-bsd.txt, and LICENSE-orig.txt
  files located at the root of the source distribution.
@@ -105,6 +105,7 @@ struct hid_device_ {
 	pthread_cond_t condition;
 	pthread_barrier_t barrier; /* Ensures correct startup sequence */
 	int shutdown_thread;
+	int cancelled;
 	struct libusb_transfer *transfer;
 
 	/* List of received input reports. */
@@ -442,7 +443,8 @@ struct hid_device_info  HID_API_EXPORT *hid_enumerate(unsigned short vendor_id, 
 	struct hid_device_info *root = NULL; /* return object */
 	struct hid_device_info *cur_dev = NULL;
 
-	hid_init();
+	if(hid_init() < 0)
+		return NULL;
 
 	num_devs = libusb_get_device_list(usb_context, &devs);
 	if (num_devs < 0)
@@ -456,10 +458,6 @@ struct hid_device_info  HID_API_EXPORT *hid_enumerate(unsigned short vendor_id, 
 		int res = libusb_get_device_descriptor(dev, &desc);
 		unsigned short dev_vid = desc.idVendor;
 		unsigned short dev_pid = desc.idProduct;
-
-		/* HID's are defined at the interface level. */
-		if (desc.bDeviceClass != LIBUSB_CLASS_PER_INTERFACE)
-			continue;
 
 		res = libusb_get_active_config_descriptor(dev, &conf_desc);
 		if (res < 0)
@@ -686,10 +684,12 @@ static void read_callback(struct libusb_transfer *transfer)
 	}
 	else if (transfer->status == LIBUSB_TRANSFER_CANCELLED) {
 		dev->shutdown_thread = 1;
+		dev->cancelled = 1;
 		return;
 	}
 	else if (transfer->status == LIBUSB_TRANSFER_NO_DEVICE) {
 		dev->shutdown_thread = 1;
+		dev->cancelled = 1;
 		return;
 	}
 	else if (transfer->status == LIBUSB_TRANSFER_TIMED_OUT) {
@@ -704,6 +704,7 @@ static void read_callback(struct libusb_transfer *transfer)
 	if (res != 0) {
 		LOG("Unable to submit URB. libusb error code: %d\n", res);
 		dev->shutdown_thread = 1;
+		dev->cancelled = 1;
 	}
 }
 
@@ -753,10 +754,10 @@ static void *read_thread(void *param)
 
 	/* Cancel any transfer that may be pending. This call will fail
 	   if no transfers are pending, but that's OK. */
-	if (libusb_cancel_transfer(dev->transfer) == 0) {
-		/* The transfer was cancelled, so wait for its completion. */
-		libusb_handle_events(usb_context);
-	}
+	libusb_cancel_transfer(dev->transfer);
+
+	while (!dev->cancelled)
+		libusb_handle_events_completed(usb_context, &dev->cancelled);
 
 	/* Now that the read thread is stopping, Wake any threads which are
 	   waiting on data (in hid_read_timeout()). Do this under a mutex to
@@ -789,9 +790,10 @@ hid_device * HID_API_EXPORT hid_open_path(const char *path)
 	int d = 0;
 	int good_open = 0;
 
-	dev = new_hid_device();
+	if(hid_init() < 0)
+		return NULL;
 
-	hid_init();
+	dev = new_hid_device();
 
 	libusb_get_device_list(usb_context, &devs);
 	while ((usb_dev = devs[d++]) != NULL) {

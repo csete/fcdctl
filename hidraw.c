@@ -12,7 +12,7 @@
 
  At the discretion of the user of this library,
  this software may be licensed under the terms of the
- GNU Public License v3, a BSD-Style license, or the
+ GNU General Public License v3, a BSD-Style license, or the
  original HIDAPI license as outlined in the LICENSE.txt,
  LICENSE-gpl3.txt, LICENSE-bsd.txt, and LICENSE-orig.txt
  files located at the root of the source distribution.
@@ -79,6 +79,27 @@ struct hid_device_ {
 
 
 static __u32 kernel_version = 0;
+
+static __u32 detect_kernel_version(void)
+{
+	struct utsname name;
+	int major, minor, release;
+	int ret;
+
+	uname(&name);
+	ret = sscanf(name.release, "%d.%d.%d", &major, &minor, &release);
+	if (ret == 3) {
+		return KERNEL_VERSION(major, minor, release);
+	}
+
+	ret = sscanf(name.release, "%d.%d", &major, &minor);
+	if (ret == 2) {
+		return KERNEL_VERSION(major, minor, 0);
+	}
+
+	printf("Couldn't determine kernel version from version string \"%s\"\n", name.release);
+	return 0;
+}
 
 static hid_device *new_hid_device(void)
 {
@@ -345,6 +366,8 @@ int HID_API_EXPORT hid_init(void)
 	if (!locale)
 		setlocale(LC_CTYPE, "");
 
+	kernel_version = detect_kernel_version();
+
 	return 0;
 }
 
@@ -600,21 +623,6 @@ hid_device * HID_API_EXPORT hid_open_path(const char *path)
 
 	dev = new_hid_device();
 
-	if (kernel_version == 0) {
-		struct utsname name;
-		int major, minor, release;
-		int ret;
-		uname(&name);
-		ret = sscanf(name.release, "%d.%d.%d", &major, &minor, &release);
-		if (ret == 3) {
-			kernel_version = major << 16 | minor << 8 | release;
-			//printf("Kernel Version: %d\n", kernel_version);
-		}
-		else {
-			printf("Couldn't sscanf() version string %s\n", name.release);
-		}
-	}
-
 	/* OPEN HERE */
 	dev->device_handle = open(path, O_RDWR);
 
@@ -669,10 +677,13 @@ int HID_API_EXPORT hid_read_timeout(hid_device *dev, unsigned char *data, size_t
 {
 	int bytes_read;
 
-	if (milliseconds != 0) {
-		/* milliseconds is -1 or > 0. In both cases, we want to
-		   call poll() and wait for data to arrive. -1 means
-		   INFINITE. */
+	if (milliseconds >= 0) {
+		/* Milliseconds is either 0 (non-blocking) or > 0 (contains
+		   a valid timeout). In both cases we want to call poll()
+		   and wait for data to arrive.  Don't rely on non-blocking
+		   operation (O_NONBLOCK) since some kernels don't seem to
+		   properly report device disconnection through read() when
+		   in non-blocking mode.  */
 		int ret;
 		struct pollfd fds;
 
@@ -680,9 +691,16 @@ int HID_API_EXPORT hid_read_timeout(hid_device *dev, unsigned char *data, size_t
 		fds.events = POLLIN;
 		fds.revents = 0;
 		ret = poll(&fds, 1, milliseconds);
-		if (ret == -1 || ret == 0)
+		if (ret == -1 || ret == 0) {
 			/* Error or timeout */
 			return ret;
+		}
+		else {
+			/* Check for errors on the file descriptor. This will
+			   indicate a device disconnection. */
+			if (fds.revents & (POLLERR | POLLHUP | POLLNVAL))
+				return -1;
+		}
 	}
 
 	bytes_read = read(dev->device_handle, data, length);
@@ -690,6 +708,7 @@ int HID_API_EXPORT hid_read_timeout(hid_device *dev, unsigned char *data, size_t
 		bytes_read = 0;
 
 	if (bytes_read >= 0 &&
+	    kernel_version != 0 &&
 	    kernel_version < KERNEL_VERSION(2,6,34) &&
 	    dev->uses_numbered_reports) {
 		/* Work around a kernel bug. Chop off the first byte. */
@@ -707,25 +726,12 @@ int HID_API_EXPORT hid_read(hid_device *dev, unsigned char *data, size_t length)
 
 int HID_API_EXPORT hid_set_nonblocking(hid_device *dev, int nonblock)
 {
-	int flags, res;
+	/* Do all non-blocking in userspace using poll(), since it looks
+	   like there's a bug in the kernel in some versions where
+	   read() will not return -1 on disconnection of the USB device */
 
-	flags = fcntl(dev->device_handle, F_GETFL, 0);
-	if (flags >= 0) {
-		if (nonblock)
-			res = fcntl(dev->device_handle, F_SETFL, flags | O_NONBLOCK);
-		else
-			res = fcntl(dev->device_handle, F_SETFL, flags & ~O_NONBLOCK);
-	}
-	else
-		return -1;
-
-	if (res < 0) {
-		return -1;
-	}
-	else {
-		dev->blocking = !nonblock;
-		return 0; /* Success */
-	}
+	dev->blocking = !nonblock;
+	return 0; /* Success */
 }
 
 
