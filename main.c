@@ -1,18 +1,17 @@
 /* 
- * FunCube Dongle command line interface
- * David Pello EA1IDZ 2011
- * Pieter-Tjerk de Boer PA3FWM Sept. 2011: added LNA gain setting, auto-detect 
- * of units for frequency, reading current settings from dongle, 
- * (non-elegant) support for multiple dongles
+ * Funcube Dongle command line interface
+ * Copyright 2011 David Pello EA1IDZ
+ * Copyright 2011 Pieter-Tjerk de Boer PA3FWM
+ * Copyright 2012-2013 Alexandru Csete OZ9AEC
  *
  * This code is licensed under a GNU GPL licensed
  * See LICENSE for information
  *
  */
 #ifdef FCDPP
-#define PROGRAM_VERSION "0.4.1-fcdpp"
+#define PROGRAM_VERSION "0.4.3-fcdpp"
 #else
-#define PROGRAM_VERSION "0.4.1"
+#define PROGRAM_VERSION "0.4.3"
 #endif
 
 #include <stdio.h>
@@ -105,19 +104,21 @@ const char* program_name;
 
 void print_help()
 {
-    printf("FCDcontrol V %s\n", PROGRAM_VERSION);
-    printf("USAGE: %s options [arguments]\n", program_name);
-    printf("     -l   --list			List all FCDs in the system\n");
-    printf("     -s   --status			Gets FCD current status\n");
-    printf("     -f   --frequency <frequency>	Sets FCD frequency in MHz\n");
+    printf("\n");
+    printf("This is fcdctl version %s\n", PROGRAM_VERSION);
+    printf("\n");
+    printf("Usage: %s options [arguments]\n", program_name);
+    printf("  -l, --list             List all FCDs in the system\n");
+    printf("  -s, --status           Gets FCD current status\n");
+    printf("  -f, --frequency <freq> Sets FCD frequency in MHz\n");
 #ifdef FCDPP
-    printf("     -g   --gain <gain>			Enable/disable LNA gain (0 or 1)\n");
+    printf("  -g, --gain <gain>      Enable/disable LNA gain (0 or 1)\n");
 #else
-    printf("     -g   --gain <gain>			Sets LNA gain in dB\n");
-    printf("     -c   --correction <correction>	Sets frequency correction in ppm\n");
+    printf("  -g, --gain <gain>      Sets LNA gain in dB\n");
+    printf("  -c, --correction <cor> Sets frequency correction in ppm\n");
 #endif
-    printf("     -i   --index <index>		Which dongle to show/set (default: 0, i.e. first)\n");
-    printf("     -h   --help       			Shows this help\n");
+    printf("  -i, --index <index>    Which dongle to show/set (default: 0)\n");
+    printf("  -h, --help             Shows this help\n");
 }
 
 void print_status()
@@ -277,6 +278,4 @@ int main(int argc, char* argv[])
     if (dostatus) print_status();
 
     return EXIT_SUCCESS;
-
-
 }
