@@ -1,19 +1,20 @@
-FunCube Dongle command line interface
--------------------------------------
+Simple command line interface for Funcube Dongle Pro and Pro+
+
+by
 
 David Pello EA1IDZ
-Contributions by:
+Alexandru Csete OZ9AEC
+
+with contributions by:
+
 Pieter-Tjerk, PA3FWM
 
 
-This is a fast hack for a command line interface for funcube dongle, 
-so I can use it in scripts and the like.
-I decided to publish it because I think it can be useful to some other people.
+This is a simple commandf line utility to set the frequency and gain of
+Funcube Dongloe Pro and Pro+ devices. Originally written by David Pello
+EA1IDZ, this copy has been further improved by Alexandru Csete OZ9AEC.
 
-This copy has been further hacked by Alexandru Csete OZ9AEC to make it work with
-the Funcube Dongle Pro+.
-
-FCD HID code is from QTHID so thank them:
+Uses FCD HID code from QTHID written by:
 Howard Long G6LVB,
 Alexandru Csete OZ9AEC, 
 Mario Lorenz DL5MLO
@@ -32,3 +33,4 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
+

@@ -1,8 +1,20 @@
-FunCube Dongle command line interface
+Simple command line interface for the Funcube Dongle Pro and Pro+
 
-Installing:
 
-	Just run make, sudo make install, that's all, you need 
-	libusb-1.0 library and development headers for building.
+Installing
 
+Ensure that you have libusb-1.0 installed (including the -devel or -dev
+package) then run "make" or "make fcdpp" without the quotes in the terminal.
+You should end up with an application called "fcdctl". Copy this to a location
+of your choice.
+
+If you don't already have the udev rule file installed, install it now:
+
+$ sudo cp funcube-dongle.rules /etc/udev/rules.d/68-funcube-dongle.rules
+
+or if you have a Funcube Dongle Pro+:
+
+$ sudo cp funcube-dongle-proplus.rules /etc/udev/rules.d/68-funcube-dongle-proplus.rules
+
+Re-insert your dongle and you should now be able to use fcdctl.
 

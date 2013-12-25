@@ -1,14 +1,18 @@
-0.4.2 - December 13, 2013:
+0.4.3 - December 25, 2013 (Alexandru Csete):
+    Include udev rule files.
+
+0.4.2 - December 13, 2013 (Alexandru Csete):
     Updated hidapi to latest version (should fix crashes).
     Added -lpthread to Makefile.
 
 0.4.1 - November 29, 2012:
-    Quick hack by Alexandru Csete OZ9AEC to make it work with Funcube Dongle Pro+
+    Quick hack by Alexandru Csete OZ9AEC to make it work with Funcube Dongle
+    Pro+
 
 0.4 - October 5, 2011:
-        Fourth commit. Added selection in KHz and MHz, LNA Gain option, getting the frequency 
-        from the FCD, and support multiple FCDs in the same computer.
-        Thanks to Pieter-Tjerk, PA3FWM for the patch.
+    Fourth commit. Added selection in kHz and MHz, LNA Gain option, getting the
+    frequency from the FCD, and support multiple FCDs in the same computer.
+    Thanks to Pieter-Tjerk, PA3FWM for the patch.
 
 0.3 - July 18, 2011:
 	Third commit. Added firmware version to status option.
@@ -20,6 +24,4 @@
 
 0.1 - July 17, 2011:
 	First commit. Frequency and correction.
-
-
 
