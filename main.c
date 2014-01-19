@@ -2,16 +2,16 @@
  * Funcube Dongle command line interface
  * Copyright 2011 David Pello EA1IDZ
  * Copyright 2011 Pieter-Tjerk de Boer PA3FWM
- * Copyright 2012-2013 Alexandru Csete OZ9AEC
+ * Copyright 2012-2014 Alexandru Csete OZ9AEC
  *
  * This code is licensed under a GNU GPL licensed
  * See LICENSE for information
  *
  */
 #ifdef FCDPP
-#define PROGRAM_VERSION "0.4.3-fcdpp"
+#define PROGRAM_VERSION "0.4.4-fcdpp"
 #else
-#define PROGRAM_VERSION "0.4.3"
+#define PROGRAM_VERSION "0.4.4"
 #endif
 
 #include <stdio.h>
