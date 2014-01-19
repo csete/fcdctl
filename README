@@ -1,25 +1,21 @@
-Simple command line interface for Funcube Dongle Pro and Pro+
+Simple command line interface for the Funcube Dongle Pro and Pro+.
 
-by
+To build for Funcube Dongle Pro type "make" (without the quotes).
+To build for Funcube Dongle Pro+ type "make fcdpp".
 
-David Pello EA1IDZ
-Alexandru Csete OZ9AEC
-
-with contributions by:
-
-Pieter-Tjerk, PA3FWM
+Requires libusb-1.0-dev.
 
 
 This is a simple commandf line utility to set the frequency and gain of
-Funcube Dongloe Pro and Pro+ devices. Originally written by David Pello
-EA1IDZ, this copy has been further improved by Alexandru Csete OZ9AEC.
+Funcube Dongloe Pro and Pro+ devices.
+
+Written by David Pello EA1IDZ and Alexandru Csete OZ9AEC with
+contributions by Pieter-Tjerk, PA3FWM.
 
 Uses FCD HID code from QTHID written by:
 Howard Long G6LVB,
 Alexandru Csete OZ9AEC, 
 Mario Lorenz DL5MLO
-
-Thanks to Pieter-Tjerk, PA3FWM for his contributions.
 
 This is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
