@@ -6,7 +6,7 @@ To build for Funcube Dongle Pro+ type "make fcdpp".
 Requires libusb-1.0-dev.
 
 
-This is a simple commandf line utility to set the frequency and gain of
+This is a simple command line utility to set the frequency and gain of
 Funcube Dongloe Pro and Pro+ devices.
 
 Written by David Pello EA1IDZ and Alexandru Csete OZ9AEC with
