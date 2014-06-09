@@ -39,12 +39,12 @@ typedef int BOOL;
 
 
 const unsigned short _usVID=0x04D8;  /*!< USB vendor ID. */
-#ifdef FCDPP
-const unsigned short _usPID=0xFB31;  /*!< USB product ID. */
-#else
-const unsigned short _usPID=0xFB56;  /*!< USB product ID. */
-#endif
+// FCD Pro+ in app mode
+const unsigned short _usPIDP=0xFB31;  /*!< USB product ID. */
+// FCD Pro (all modes) or Pro+ in bootloader mode
+const unsigned short _usPIDO=0xFB56;  /*!< USB product ID. */
 
+// which FCD instance are we talking to: wish they had serial numbers..
 int whichdongle=0;
 
 
@@ -60,7 +60,10 @@ static hid_device *fcdOpen(void)
     hid_device *phd=NULL;
     char *pszPath=NULL;
 
-    phdi=hid_enumerate(_usVID,_usPID);
+    // Try Pro+ app mode then fall back to Pro+ BL or Pro
+    phdi=hid_enumerate(_usVID,_usPIDP);
+    if (!phdi)
+        phdi=hid_enumerate(_usVID,_usPIDO);
 
     int which=whichdongle;
     while (phdi && which) {

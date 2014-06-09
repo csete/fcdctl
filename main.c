@@ -15,6 +15,7 @@
 #endif
 
 #include <stdio.h>
+#include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <getopt.h>
@@ -27,7 +28,8 @@ double lnagainvalues[]={-5.0,-2.5,-999,-999,0,2.5,5,7.5,10,12.5,15,17.5,20,25,30
 
 #include "hidapi.h"
 extern const unsigned short _usVID;
-extern const unsigned short _usPID;
+extern const unsigned short _usPIDP;
+extern const unsigned short _usPIDO;
 extern int whichdongle;
 
 void print_list(void)
@@ -38,7 +40,9 @@ void print_list(void)
     //char *pszPath=NULL;
 
     // look for all FCDs
-    phdi=hid_enumerate(_usVID,_usPID);
+    phdi=hid_enumerate(_usVID,_usPIDP);
+    if (!phdi)
+        phdi=hid_enumerate(_usVID,_usPIDO);
     if (phdi==NULL)
     {
         puts("No FCD found.\n");
@@ -117,6 +121,7 @@ void print_help()
     printf("  -g, --gain <gain>      Sets LNA gain in dB\n");
     printf("  -c, --correction <cor> Sets frequency correction in ppm\n");
 #endif
+    printf("  -u, --update <file>    Updates FCD firmware from <file>\n");
     printf("  -i, --index <index>    Which dongle to show/set (default: 0)\n");
     printf("  -h, --help             Shows this help\n");
 }
@@ -156,6 +161,93 @@ void print_status()
     }
 }
 
+void update_firm(char *firm)
+{
+    int stat;
+    long fwsiz;
+    FILE *fp = NULL;
+    char *fwbuf = NULL, resp[10];
+
+    fp = fopen(firm, "rb");
+    if (!fp)
+    {
+        printf("Unable to open firmware file: %s\n", firm);
+        goto done;
+    }
+    stat = fseek(fp, 0, SEEK_END);
+    if (stat)
+    {
+        printf("Unable to seek to end of firmware\n");
+        goto done;
+    }
+    fwsiz = ftell(fp);
+    if (fwsiz<0)
+    {
+        printf("Unable to read firmware size\n");
+        goto done;
+    }
+    fwbuf = malloc(fwsiz);
+    if (!fwbuf)
+    {
+        printf("Unable to allocate memory for firmware buffer\n");
+        goto done;
+    }
+    if (fseek(fp, SEEK_SET, 0)<0 || fread(fwbuf, fwsiz, 1, fp)!=1)
+    {
+        printf("Unable to read firmware into buffer\n");
+        goto done;
+    }
+    fclose(fp);
+    fp = NULL;
+
+    stat = fcdGetMode();
+
+    if (stat == FCD_MODE_NONE)
+    {
+        printf("No FCD Detected.\n");
+    }
+    else if (stat == FCD_MODE_APP)
+    {
+        printf("FCD present in application mode - resetting to bootloader..\n");
+        stat = fcdAppReset();
+        printf("Please check /var/log/messages to confirm mode change, then re-run update.\n");
+    }
+    else if (stat == FCD_MODE_BL)
+    {
+        printf("FCD present in bootloader mode - type 'yes' to confirm update: ");
+        fflush(stdout);
+        if (scanf("%9s\n", resp)>0 && strcmp(resp, "yes")==0)
+        {
+            printf("erasing..\n");
+            stat = fcdBlErase();
+            if (stat != FCD_MODE_BL)
+            {
+                printf("Unable to erase existing firmware.\n");
+                goto done;
+            }
+            printf("writing..\n");
+            stat = fcdBlWriteFirmware(fwbuf, fwsiz);
+            if (stat != FCD_MODE_BL)
+            {
+                printf("Unable to write firmware to FCD.\n");
+                goto done;
+            }
+            printf("verifying..\n");
+            stat = fcdBlVerifyFirmware(fwbuf, fwsiz);
+            if (stat != FCD_MODE_BL)
+            {
+                printf("Unable to verify firmware on FCD.\n");
+                goto done;
+            }
+            printf("done. Resetting to application mode, please check /var/log/messages\n");
+            stat = fcdBlReset();
+        }
+    }
+done:
+    if (fwbuf) free(fwbuf);
+    if (fp) fclose(fp);
+}
+
 int main(int argc, char* argv[])
 {
     int stat;
@@ -165,10 +257,11 @@ int main(int argc, char* argv[])
     int corr = 0;
     int dolist = 0;
     int dostatus = 0;
+    char *firm = NULL;
 
     /* getopt infrastructure */
     int next_option;
-    const char* const short_options = "slg:f:c:i:h";
+    const char* const short_options = "slg:f:c:i:u:h";
     const struct option long_options[] =
     {
         { "status", 0, NULL, 's' },
@@ -177,6 +270,7 @@ int main(int argc, char* argv[])
         { "index", 1, NULL, 'i' },
         { "gain", 1, NULL, 'g' },
         { "correction", 1, NULL, 'c' },
+        { "update", 1, NULL, 'u' },
         { "help", 0, NULL, 'h' }
     };
 
@@ -221,6 +315,9 @@ int main(int argc, char* argv[])
                 break;
             case 'c' :
                 corr = atoi(optarg);
+                break;
+            case 'u' :
+                firm = optarg;
                 break;
             case '?' :
                 print_help();
@@ -272,6 +369,8 @@ int main(int argc, char* argv[])
 #endif
 
     }
+
+    if (firm) update_firm(firm);
 
     if (dolist) print_list();
 
