@@ -30,7 +30,6 @@
 #include "hidapi.h"
 #include "fcd.h"
 #include "fcdhidcmd.h"
-#include <stdio.h>
 
 
 #define FALSE 0
@@ -107,6 +106,63 @@ static void fcdClose(hid_device *phd)
 }
 
 
+/** \brief Get FCD version.
+ * \return The current FCD version.
+ * \sa FCD_VERSION_ENUM
+ */
+EXTERN FCD_API_EXPORT FCD_API_CALL FCD_VERSION_ENUM fcdGetVersion(void)
+{
+    hid_device *phd=NULL;
+    unsigned char aucBufIn[65];
+    unsigned char aucBufOut[65];
+    FCD_VERSION_ENUM fcd_version = FCD_VERSION_NONE;
+
+    phd = fcdOpen();
+
+    if (phd == NULL)
+    {
+        return FCD_MODE_NONE;
+    }
+
+    /* Send a BL Query Command */
+    aucBufOut[0] = 0; // Report ID, ignored
+    aucBufOut[1] = FCD_CMD_BL_QUERY;
+    hid_write(phd, aucBufOut, 65);
+    memset(aucBufIn, 0xCC, 65); // Clear out the response buffer
+    hid_read(phd, aucBufIn, 65);
+
+    fcdClose(phd);
+    phd = NULL;
+
+    /* first check status bytes then check which mode */
+    if (aucBufIn[0]==FCD_CMD_BL_QUERY && aucBufIn[1]==1) {
+
+        /* In bootloader mode we have the string "FCDBL" or "FCD2BL" starting at acBufIn[2] **/
+        if (strncmp((char *)(aucBufIn+2), "FCDBL", 5) == 0)
+            fcd_version = FCD_VERSION_1;
+        else if (strncmp((char *)(aucBufIn+2), "FCD2BL", 6) == 0)
+            fcd_version = FCD_VERSION_2;
+        /* In application mode we have "FCDAPP_18.06 x.y" where the x.y is the HW version */
+        else if (strncmp((char *)(aucBufIn+2), "FCDAPP", 6) == 0) {
+            if (strncmp((char *)(aucBufIn+19), "1.0", 3) == 0)
+                fcd_version = FCD_VERSION_1;
+            else if (strncmp((char *)(aucBufIn+19), "1.1", 3) == 0)
+                fcd_version = FCD_VERSION_1_1;
+            else if (strncmp((char *)(aucBufIn+19), "2.0", 3) == 0)
+                fcd_version = FCD_VERSION_2;
+            else
+                fcd_version = FCD_VERSION_UNK;
+
+        /* either no FCD or firmware less than 18f, or HW too new */
+        } else {
+            fcd_version = FCD_VERSION_UNK;
+        }
+    }
+
+    return fcd_version;
+}
+
+
 /** \brief Get FCD mode.
  * \return The current FCD mode.
  * \sa FCD_MODE_ENUM
@@ -139,8 +195,8 @@ EXTERN FCD_API_EXPORT FCD_API_CALL FCD_MODE_ENUM fcdGetMode(void)
     /* first check status bytes then check which mode */
     if (aucBufIn[0]==FCD_CMD_BL_QUERY && aucBufIn[1]==1) {
 
-        /* In bootloader mode we have the string "FCDBL" starting at acBufIn[2] **/
-        if (strncmp((char *)(aucBufIn+2), "FCDBL", 5) == 0) {
+        /* In bootloader mode we have the string "FCDBL" or "FCD2BL" starting at acBufIn[2] **/
+        if (strncmp((char *)(aucBufIn+2), "FCDBL", 5) == 0 || strncmp((char *)(aucBufIn+2), "FCD2BL", 6) == 0) {
             fcd_mode = FCD_MODE_BL;
         }
         /* In application mode we have "FCDAPP_18.06" where the number is the FW version */
@@ -190,8 +246,8 @@ EXTERN FCD_API_EXPORT FCD_API_CALL FCD_MODE_ENUM fcdGetFwVerStr(char *str)
     /* first check status bytes then check which mode */
     if (aucBufIn[0]==FCD_CMD_BL_QUERY && aucBufIn[1]==1) {
 
-        /* In bootloader mode we have the string "FCDBL" starting at acBufIn[2] **/
-        if (strncmp((char *)(aucBufIn+2), "FCDBL", 5) == 0) {
+        /* In bootloader mode we have the string "FCDBL" or "FCD2BL" starting at acBufIn[2] **/
+        if (strncmp((char *)(aucBufIn+2), "FCDBL", 5) == 0 || strncmp((char *)(aucBufIn+2), "FCD2BL", 6) == 0) {
             fcd_mode = FCD_MODE_BL;
         }
         /* In application mode we have "FCDAPP_18.06" where the number is the FW version */
@@ -257,8 +313,8 @@ EXTERN FCD_API_EXPORT FCD_API_CALL FCD_MODE_ENUM fcdGetCaps(FCD_CAPS_STRUCT *fcd
     /* first check status bytes then check which mode */
     if (aucBufIn[0]==FCD_CMD_BL_QUERY && aucBufIn[1]==1) {
 
-        /* In bootloader mode we have the string "FCDBL" starting at acBufIn[2] **/
-        if (strncmp((char *)(aucBufIn+2), "FCDBL", 5) == 0) {
+        /* In bootloader mode we have the string "FCDBL" or "FCD2BL" starting at acBufIn[2] **/
+        if (strncmp((char *)(aucBufIn+2), "FCDBL", 5) == 0 || strncmp((char *)(aucBufIn+2), "FCD2BL", 6) == 0) {
             fcd_mode = FCD_MODE_BL;
         }
         /* In application mode we have "FCDAPP 18.08 Brd 1.0 No blk" (see API doc) */
@@ -328,8 +384,8 @@ EXTERN FCD_API_EXPORT FCD_API_CALL FCD_MODE_ENUM fcdGetCapsStr(char *caps_str)
     /* first check status bytes then check which mode */
     if (aucBufIn[0]==FCD_CMD_BL_QUERY && aucBufIn[1]==1) {
 
-        /* In bootloader mode we have the string "FCDBL" starting at acBufIn[2] **/
-        if (strncmp((char *)(aucBufIn+2), "FCDBL", 5) == 0) {
+        /* In bootloader mode we have the string "FCDBL" or "FCD2BL" starting at acBufIn[2] **/
+        if (strncmp((char *)(aucBufIn+2), "FCDBL", 5) == 0 || strncmp((char *)(aucBufIn+2), "FCD2BL", 6) == 0) {
             fcd_mode = FCD_MODE_BL;
         }
         /* In application mode we have "FCDAPP 18.08 Brd 1.0 No blk" (see API doc) */
@@ -613,13 +669,43 @@ EXTERN FCD_API_EXPORT FCD_API_CALL FCD_MODE_ENUM fcdBlErase(void)
  */
 EXTERN FCD_API_EXPORT FCD_API_CALL FCD_MODE_ENUM fcdBlWriteFirmware(char *pc, int64_t n64Size)
 {
+    return fcdBlWriteFirmwareProg(pc, (uint32_t)n64Size, NULL);
+}
+
+
+/** \brief Write new firmware into the FCD.
+ * \param pc Pointer to the new firmware data
+ * \param nsize The number of bytes in the data
+ * \param prog Optional progress callback function
+ * \return The FCD mode
+ *
+ * This function is used to upload new firmware into the FCD flash.
+ *
+ * \sa fcdBlErase
+ */
+EXTERN FCD_API_EXPORT FCD_API_CALL FCD_MODE_ENUM fcdBlWriteFirmwareProg(char *pc, uint32_t nSize, fcdProgressCallback prog)
+{
     hid_device *phd=NULL;
     unsigned char aucBufIn[65];
     unsigned char aucBufOut[65];
     uint32_t u32AddrStart;
     uint32_t u32AddrEnd;
     uint32_t u32Addr;
+    uint32_t uBlkSize;
     BOOL bFinished=FALSE;
+
+    switch (fcdGetVersion())
+    {
+    case FCD_VERSION_1:
+    case FCD_VERSION_1_1:
+        uBlkSize = 48;
+        break;
+    case FCD_VERSION_2:
+        uBlkSize = 32;
+        break;
+    default:
+        return FCD_MODE_NONE;
+    }
 
     phd = fcdOpen();
 
@@ -676,9 +762,9 @@ EXTERN FCD_API_EXPORT FCD_API_CALL FCD_MODE_ENUM fcdBlWriteFirmware(char *pc, in
     // Write blocks
     aucBufOut[0] = 0; // Report ID, ignored
     aucBufOut[1] = FCD_CMD_BL_WRITE_FLASH_BLOCK;
-    for (u32Addr=u32AddrStart; u32Addr+47<u32AddrEnd && u32Addr+47<n64Size && !bFinished; u32Addr+=48)
+    for (u32Addr=u32AddrStart; u32Addr+uBlkSize-1<u32AddrEnd && u32Addr-u32AddrStart+uBlkSize-1<nSize && !bFinished; u32Addr+=uBlkSize)
     {
-        memcpy(&aucBufOut[3], &pc[u32Addr], 48);
+        memcpy(&aucBufOut[3], &pc[u32Addr-u32AddrStart], uBlkSize);
 
         hid_write(phd, aucBufOut, 65);
         memset(aucBufIn, 0xCC, 65); // Clear out the response buffer
@@ -690,8 +776,13 @@ EXTERN FCD_API_EXPORT FCD_API_CALL FCD_MODE_ENUM fcdBlWriteFirmware(char *pc, in
             fcdClose(phd);
             phd = NULL;
 
+            if (prog)
+                prog(u32AddrStart, u32AddrEnd, u32Addr, PROG_CMD_FAIL);
+
             return FCD_MODE_APP;
         }
+        if (prog)
+            prog(u32AddrStart, u32AddrEnd, u32Addr, PROG_OK);
     }
 
     fcdClose(phd);
@@ -712,13 +803,43 @@ EXTERN FCD_API_EXPORT FCD_API_CALL FCD_MODE_ENUM fcdBlWriteFirmware(char *pc, in
  */
 EXTERN FCD_API_EXPORT FCD_API_CALL FCD_MODE_ENUM fcdBlVerifyFirmware(char *pc, int64_t n64Size)
 {
+    return fcdBlVerifyFirmwareProg(pc, (uint32_t)n64Size, NULL);
+}
+
+
+/** \brief Verify firmware in FCd flash.
+ * \param pc Pointer to firmware data to verify against.
+ * \param nSize Size of the data in pc.
+ * \param prog Optional progress callback function
+ * \return The FCD_MODE_BL if verification was succesful.
+ *
+ * This function verifies the firmware currently in the FCd flash against the firmware
+ * image pointed to by pc. The function return FCD_MODE_BL if the verification is OK and
+ * FCD_MODE_APP otherwise.
+ */
+EXTERN FCD_API_EXPORT FCD_API_CALL FCD_MODE_ENUM fcdBlVerifyFirmwareProg(char *pc, uint32_t nSize, fcdProgressCallback prog)
+{
     hid_device *phd=NULL;
     unsigned char aucBufIn[65];
     unsigned char aucBufOut[65];
     uint32_t u32AddrStart;
     uint32_t u32AddrEnd;
     uint32_t u32Addr;
+    uint32_t uBlkSize;
     BOOL bFinished=FALSE;
+
+    switch (fcdGetVersion())
+    {
+    case FCD_VERSION_1:
+    case FCD_VERSION_1_1:
+        uBlkSize = 48;
+        break;
+    case FCD_VERSION_2:
+        uBlkSize = 32;
+        break;
+    default:
+        return FCD_MODE_NONE;
+    }
 
     phd = fcdOpen();
 
@@ -776,7 +897,7 @@ EXTERN FCD_API_EXPORT FCD_API_CALL FCD_MODE_ENUM fcdBlVerifyFirmware(char *pc, i
     // Read blocks
     aucBufOut[0] = 0; // Report ID, ignored
     aucBufOut[1] = FCD_CMD_BL_READ_FLASH_BLOCK;
-    for (u32Addr=u32AddrStart; u32Addr+47<u32AddrEnd && u32Addr+47<n64Size && !bFinished; u32Addr+=48)
+    for (u32Addr=u32AddrStart; u32Addr+uBlkSize-1<u32AddrEnd && u32Addr-u32AddrStart+uBlkSize-1<nSize && !bFinished; u32Addr+=uBlkSize)
     {
         hid_write(phd, aucBufOut, 65);
         memset(aucBufIn, 0xCC, 65); // Clear out the response buffer
@@ -788,17 +909,25 @@ EXTERN FCD_API_EXPORT FCD_API_CALL FCD_MODE_ENUM fcdBlVerifyFirmware(char *pc, i
             fcdClose(phd);
             phd = NULL;
 
+            if (prog)
+                prog(u32AddrStart, u32AddrEnd, u32Addr, PROG_CMD_FAIL);
+
             return FCD_MODE_APP;
         }
 
-        if (memcmp(&aucBufIn[2],&pc[u32Addr],48)!=0)
+        if (memcmp(&aucBufIn[2],&pc[u32Addr-u32AddrStart],uBlkSize)!=0)
         {
             bFinished = TRUE;
             fcdClose(phd);
             phd = NULL;
 
+            if (prog)
+                prog(u32AddrStart, u32AddrEnd, u32Addr, PROG_BLK_FAIL);
+
             return FCD_MODE_APP;
         }
+        if (prog)
+            prog(u32AddrStart, u32AddrEnd, u32Addr, PROG_OK);
     }
 
     fcdClose(phd);
@@ -807,6 +936,149 @@ EXTERN FCD_API_EXPORT FCD_API_CALL FCD_MODE_ENUM fcdBlVerifyFirmware(char *pc, i
     return FCD_MODE_BL;
 }
 
+
+/** \brief Save firmware from FCD flash.
+ * \param saveFile Handle to writeable file in which firmware is saved.
+ * \return The FCD_MODE_BL if saving was succesful.
+ *
+ * This function saves the firmware currently in the FCD flash to the supplied file
+ * handle. The file is not closed.
+ * The function return FCD_MODE_BL if the saving is OK and FCD_MODE_APP otherwise.
+ */
+EXTERN FCD_API_EXPORT FCD_API_CALL FCD_MODE_ENUM fcdBlSaveFirmware(FILE *saveFile)
+{
+    return fcdBlSaveFirmwareProg(saveFile, NULL);
+}
+
+
+/** \brief Save firmware from FCD flash.
+ * \param saveFile Handle to writeable file in which firmware is saved.
+ * \param prog Optional progress callback function
+ * \return The FCD_MODE_BL if saving was succesful.
+ *
+ * This function saves the firmware currently in the FCD flash to the supplied file
+ * handle. The file is not closed.
+ * The function return FCD_MODE_BL if the saving is OK and FCD_MODE_APP otherwise.
+ */
+EXTERN FCD_API_EXPORT FCD_API_CALL FCD_MODE_ENUM fcdBlSaveFirmwareProg(FILE *saveFile, fcdProgressCallback prog)
+{
+    hid_device *phd=NULL;
+    unsigned char aucBufIn[65];
+    unsigned char aucBufOut[65];
+    uint32_t u32AddrStart;
+    uint32_t u32AddrEnd;
+    uint32_t u32Addr;
+    uint32_t uBlkSize;
+    BOOL bFinished=FALSE;
+
+    switch (fcdGetVersion())
+    {
+    case FCD_VERSION_1:
+    case FCD_VERSION_1_1:
+        uBlkSize = 48;
+        break;
+    case FCD_VERSION_2:
+        uBlkSize = 32;
+        break;
+    default:
+        return FCD_MODE_NONE;
+    }
+
+    phd = fcdOpen();
+
+    if (phd==NULL)
+    {
+        return FCD_MODE_NONE;
+    }
+
+    // Get the valid flash address range
+    aucBufOut[0] = 0; // Report ID, ignored
+    aucBufOut[1] = FCD_CMD_BL_GET_BYTE_ADDR_RANGE;
+    hid_write(phd, aucBufOut, 65);
+    memset(aucBufIn, 0xCC, 65); // Clear out the response buffer
+    hid_read(phd, aucBufIn, 65);
+
+    if (aucBufIn[0]!=FCD_CMD_BL_GET_BYTE_ADDR_RANGE || aucBufIn[1]!=1)
+    {
+        fcdClose(phd);
+        phd = NULL;
+
+        return FCD_MODE_APP;
+    }
+
+    u32AddrStart=
+        aucBufIn[2]+
+        (((uint32_t)aucBufIn[3])<<8)+
+        (((uint32_t)aucBufIn[4])<<16)+
+        (((uint32_t)aucBufIn[5])<<24);
+
+    u32AddrEnd=
+        aucBufIn[6]+
+        (((uint32_t)aucBufIn[7])<<8)+
+        (((uint32_t)aucBufIn[8])<<16)+
+        (((uint32_t)aucBufIn[9])<<24);
+
+    // Set start address for flash
+    aucBufOut[0] = 0; // Report ID, ignored
+    aucBufOut[1] = FCD_CMD_BL_SET_BYTE_ADDR;
+    aucBufOut[2] = ((unsigned char)u32AddrStart);
+    aucBufOut[3] = ((unsigned char)(u32AddrStart>>8));
+    aucBufOut[4] = ((unsigned char)(u32AddrStart>>16));
+    aucBufOut[5] = ((unsigned char)(u32AddrStart>>24));
+    hid_write(phd, aucBufOut, 65);
+    memset(aucBufIn, 0xCC, 65); // Clear out the response buffer
+    hid_read(phd, aucBufIn, 65);
+
+    if (aucBufIn[0]!=FCD_CMD_BL_SET_BYTE_ADDR || aucBufIn[1]!=1)
+    {
+        fcdClose(phd);
+        phd = NULL;
+
+        return FCD_MODE_APP;
+    }
+
+    // Read blocks
+    aucBufOut[0] = 0; // Report ID, ignored
+    aucBufOut[1] = FCD_CMD_BL_READ_FLASH_BLOCK;
+    for (u32Addr=u32AddrStart; u32Addr+uBlkSize-1<u32AddrEnd && !bFinished; u32Addr+=uBlkSize-1)
+    {
+        hid_write(phd, aucBufOut, 65);
+        memset(aucBufIn, 0xCC, 65); // Clear out the response buffer
+        hid_read(phd, aucBufIn, 65);
+
+        if (aucBufIn[0]!=FCD_CMD_BL_READ_FLASH_BLOCK || aucBufIn[1]!=1)
+        {
+            bFinished = TRUE;
+            fcdClose(phd);
+            phd = NULL;
+
+            if (prog)
+                prog(u32AddrStart, u32AddrEnd, u32Addr, PROG_CMD_FAIL);
+
+            return FCD_MODE_APP;
+        }
+
+        // write to open file
+        if (fwrite(&aucBufIn[2],uBlkSize,1,saveFile)!=1)
+        {
+            bFinished = TRUE;
+            fcdClose(phd);
+            phd = NULL;
+
+            if (prog)
+                prog(u32AddrStart, u32AddrEnd, u32Addr, PROG_BLK_FAIL);
+
+            return FCD_MODE_APP;
+        }
+        if (prog)
+            prog(u32AddrStart, u32AddrEnd, u32Addr, PROG_OK);
+    }
+
+    fcdClose(phd);
+    phd = NULL;
+
+    return FCD_MODE_BL;
+}
 
 
 /** \brief Write FCD parameter (e.g. gain or filter)

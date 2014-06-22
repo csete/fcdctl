@@ -41,13 +41,22 @@
 #endif
 
 #include <inttypes.h>
+#include <stdio.h>
 
+/** \brief FCD version enumeration. */
+typedef enum {
+    FCD_VERSION_NONE,/*!< No FCD detected */
+    FCD_VERSION_1,  /*!< Original FCD. */
+    FCD_VERSION_1_1,/*!< Bias T added in 1.1 */
+    FCD_VERSION_2,  /*!< Pro+ */
+    FCD_VERSION_UNK /*!< Unknown version (possibly newer than this software supports) */
+} FCD_VERSION_ENUM;
 
 /** \brief FCD mode enumeration. */
 typedef enum {
     FCD_MODE_NONE,  /*!< No FCD detected. */
     FCD_MODE_BL,    /*!< FCD present in bootloader mode. */
-    FCD_MODE_APP    /*!< FCD present in aplpication mode. */
+    FCD_MODE_APP    /*!< FCD present in application mode. */
 } FCD_MODE_ENUM; // The current mode of the FCD: none inserted, in bootloader mode or in normal application mode
 
 /** \brief FCD capabilities that depend on both hardware and firmware. */
@@ -61,6 +70,7 @@ extern "C" {
 #endif
 
 /* Application functions */
+EXTERN FCD_API_EXPORT FCD_API_CALL FCD_VERSION_ENUM fcdGetVersion(void);
 EXTERN FCD_API_EXPORT FCD_API_CALL FCD_MODE_ENUM fcdGetMode(void);
 EXTERN FCD_API_EXPORT FCD_API_CALL FCD_MODE_ENUM fcdGetFwVerStr(char *str);
 EXTERN FCD_API_EXPORT FCD_API_CALL FCD_MODE_ENUM fcdGetCaps(FCD_CAPS_STRUCT *fcd_caps);
@@ -74,10 +84,18 @@ EXTERN FCD_API_EXPORT FCD_API_CALL FCD_MODE_ENUM fcdAppGetParam(uint8_t u8Cmd, u
 
 
 /* Bootloader functions */
+typedef FCD_API_CALL void (*fcdProgressCallback)(uint32_t start, uint32_t end, uint32_t position, int err);
+#define PROG_OK	0
+#define PROG_CMD_FAIL	1
+#define PROG_BLK_FAIL	2
 EXTERN FCD_API_EXPORT FCD_API_CALL FCD_MODE_ENUM fcdBlReset(void);
 EXTERN FCD_API_EXPORT FCD_API_CALL FCD_MODE_ENUM fcdBlErase(void);
 EXTERN FCD_API_EXPORT FCD_API_CALL FCD_MODE_ENUM fcdBlWriteFirmware(char *pc, int64_t n64Size);
 EXTERN FCD_API_EXPORT FCD_API_CALL FCD_MODE_ENUM fcdBlVerifyFirmware(char *pc, int64_t n64Size);
+EXTERN FCD_API_EXPORT FCD_API_CALL FCD_MODE_ENUM fcdBlSaveFirmware(FILE *saveFile);
+EXTERN FCD_API_EXPORT FCD_API_CALL FCD_MODE_ENUM fcdBlWriteFirmwareProg(char *pc, uint32_t nSize, fcdProgressCallback prog);
+EXTERN FCD_API_EXPORT FCD_API_CALL FCD_MODE_ENUM fcdBlVerifyFirmwareProg(char *pc, uint32_t nSize, fcdProgressCallback prog);
+EXTERN FCD_API_EXPORT FCD_API_CALL FCD_MODE_ENUM fcdBlSaveFirmwareProg(FILE *saveFile, fcdProgressCallback prog);
 
 
 #ifdef __cplusplus

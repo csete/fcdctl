@@ -9,9 +9,9 @@
  *
  */
 #ifdef FCDPP
-#define PROGRAM_VERSION "0.4.4-fcdpp"
+#define PROGRAM_VERSION "0.4.5-fcdpp"
 #else
-#define PROGRAM_VERSION "0.4.4"
+#define PROGRAM_VERSION "0.4.5"
 #endif
 
 #include <stdio.h>
@@ -121,6 +121,7 @@ void print_help()
     printf("  -g, --gain <gain>      Sets LNA gain in dB\n");
     printf("  -c, --correction <cor> Sets frequency correction in ppm\n");
 #endif
+    printf("  -d, --dump <file>      Saves existing FCD firmware to <file>\n");
     printf("  -u, --update <file>    Updates FCD firmware from <file>\n");
     printf("  -i, --index <index>    Which dongle to show/set (default: 0)\n");
     printf("  -h, --help             Shows this help\n");
@@ -128,10 +129,22 @@ void print_help()
 
 void print_status()
 {
-    int stat;
-    char version[20];
+    FCD_MODE_ENUM stat;
+    FCD_VERSION_ENUM hwvr;
+    char *hwstr, version[40];
 
     stat = fcdGetMode();
+    hwvr = fcdGetVersion();
+    if (hwvr == FCD_VERSION_NONE)
+        hwstr = "Not detected";
+    else if (hwvr == FCD_VERSION_1)
+        hwstr = "V1.0";
+    else if (hwvr == FCD_VERSION_1_1)
+        hwstr = "V1.1";
+    else if (hwvr == FCD_VERSION_2)
+        hwstr = "V2.0";
+    else
+        hwstr = "Unknown";
 
     if (stat == FCD_MODE_NONE)
     {
@@ -141,12 +154,14 @@ void print_status()
     else if (stat == FCD_MODE_BL)
     {
         printf("FCD present in bootloader mode.\n");
+        printf("FCD hardware version: %s.\n", hwstr);
         return;
     }
     else	
     {
         printf("FCD present in application mode.\n");
         stat = fcdGetFwVerStr(version);
+        printf("FCD hardware version: %s.\n", hwstr);
         printf("FCD firmware version: %s.\n", version);
         unsigned char b[8];
         stat = fcdAppGetParam(FCD_CMD_APP_GET_FREQ_HZ,b,8);
@@ -159,6 +174,14 @@ void print_status()
 #endif
         return;
     }
+}
+
+FCD_API_CALL void progress(uint32_t start, uint32_t end, uint32_t position, int err)
+{
+    uint32_t len = end - start;
+    uint32_t pos = position - start;
+    printf("\r%08x: %d%% (%d) ", position, (pos*100)/len, err);
+    fflush(stdout);
 }
 
 void update_firm(char *firm)
@@ -210,13 +233,14 @@ void update_firm(char *firm)
     {
         printf("FCD present in application mode - resetting to bootloader..\n");
         stat = fcdAppReset();
-        printf("Please check /var/log/messages to confirm mode change, then re-run update.\n");
+        printf("Please check /var/log/[messages|syslog] to confirm mode change, then re-run update.\n");
     }
     else if (stat == FCD_MODE_BL)
     {
         printf("FCD present in bootloader mode - type 'yes' to confirm update: ");
         fflush(stdout);
-        if (scanf("%9s\n", resp)>0 && strcmp(resp, "yes")==0)
+        fflush(stdin);
+        if (fgets(resp, sizeof(resp), stdin) && strncmp(resp, "yes", 3)==0)
         {
             printf("erasing..\n");
             stat = fcdBlErase();
@@ -226,26 +250,77 @@ void update_firm(char *firm)
                 goto done;
             }
             printf("writing..\n");
-            stat = fcdBlWriteFirmware(fwbuf, fwsiz);
+            stat = fcdBlWriteFirmwareProg(fwbuf, fwsiz, progress);
             if (stat != FCD_MODE_BL)
             {
                 printf("Unable to write firmware to FCD.\n");
                 goto done;
             }
             printf("verifying..\n");
-            stat = fcdBlVerifyFirmware(fwbuf, fwsiz);
+            stat = fcdBlVerifyFirmwareProg(fwbuf, fwsiz, progress);
             if (stat != FCD_MODE_BL)
             {
                 printf("Unable to verify firmware on FCD.\n");
                 goto done;
             }
-            printf("done. Resetting to application mode, please check /var/log/messages\n");
+            printf("done. Resetting to application mode, please check /var/log/[messages|syslog]\n");
             stat = fcdBlReset();
         }
     }
 done:
     if (fwbuf) free(fwbuf);
     if (fp) fclose(fp);
+}
+
+void dump_firm(char *dump)
+{
+    int stat;
+    FILE *saveFile = fopen(dump, "wb");
+    if (!saveFile)
+    {
+        printf("Unable to open dump file: %s\n", dump);
+        return;
+    }
+    stat = fcdGetMode();
+    if (stat == FCD_MODE_NONE)
+    {
+        printf("No FCD detected.\n");
+    }
+    else if (stat == FCD_MODE_APP)
+    {
+        printf("FCD detceted in application mode, switching to bootloader..\n");
+        fcdAppReset();
+        printf("Please check /var/log/[messages|syslog] to confirm mode change, then re-run dump\n");
+    }
+    else if (stat == FCD_MODE_BL)
+    {
+        stat = fcdBlSaveFirmwareProg(saveFile, progress);
+        if (stat == FCD_MODE_BL)
+            printf("Firmware saved to: %s, FCD remains in bootloader mode (use -r to reset).\n", dump);
+        else
+            printf("Unable to save firmware to: %s, (is it writeable?)\n", dump);
+    }
+    fclose(saveFile);
+}
+
+void reset_fcd()
+{
+    int stat = fcdGetMode();
+    if (stat == FCD_MODE_NONE)
+    {
+        printf("No FCD detected.\n");
+    }
+    else if (stat == FCD_MODE_APP)
+    {
+        printf("FCD in application mode, resetting to bootloader.\n");
+        fcdAppReset();
+    }
+    else if (stat == FCD_MODE_BL)
+    {
+        printf("FCD in bootloader mode, resetting to application.\n");
+        fcdBlReset();
+    }
+    printf("Reset completed, please check /var/log/[message|syslog] to confirm.\n");
 }
 
 int main(int argc, char* argv[])
@@ -257,19 +332,23 @@ int main(int argc, char* argv[])
     int corr = 0;
     int dolist = 0;
     int dostatus = 0;
+    int doreset = 0;
     char *firm = NULL;
+    char *dump = NULL;
 
     /* getopt infrastructure */
     int next_option;
-    const char* const short_options = "slg:f:c:i:u:h";
+    const char* const short_options = "slrg:f:c:i:d:u:h";
     const struct option long_options[] =
     {
         { "status", 0, NULL, 's' },
         { "list", 0, NULL, 'l' },
+        { "reset", 0, NULL, 'r' },
         { "frequency", 1, NULL, 'f' },
         { "index", 1, NULL, 'i' },
         { "gain", 1, NULL, 'g' },
         { "correction", 1, NULL, 'c' },
+        { "dump", 1, NULL, 'd' },
         { "update", 1, NULL, 'u' },
         { "help", 0, NULL, 'h' }
     };
@@ -304,6 +383,9 @@ int main(int argc, char* argv[])
             case 'l' :
                 dolist=1;
                 break;
+            case 'r' :
+                doreset=1;
+                break;
             case 'f' :
                 freqf = atof(optarg);
                 break;
@@ -315,6 +397,9 @@ int main(int argc, char* argv[])
                 break;
             case 'c' :
                 corr = atoi(optarg);
+                break;
+            case 'd' :
+                dump = optarg;
                 break;
             case 'u' :
                 firm = optarg;
@@ -370,11 +455,15 @@ int main(int argc, char* argv[])
 
     }
 
+    if (dump) dump_firm(dump);
+
     if (firm) update_firm(firm);
 
     if (dolist) print_list();
 
     if (dostatus) print_status();
+
+    if (doreset) reset_fcd();
 
     return EXIT_SUCCESS;
 }
