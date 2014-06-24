@@ -38,7 +38,8 @@ typedef int BOOL;
 
 
 const unsigned short _usVID=0x04D8;  /*!< USB vendor ID. */
-// FCD Pro+ in app mode
+// special build (48kHz audio), FCD Pro+ in app mode
+const unsigned short _usPIDS=0xFB30;  /*!< USB product ID. */
 const unsigned short _usPIDP=0xFB31;  /*!< USB product ID. */
 // FCD Pro (all modes) or Pro+ in bootloader mode
 const unsigned short _usPIDO=0xFB56;  /*!< USB product ID. */
@@ -59,8 +60,10 @@ static hid_device *fcdOpen(void)
     hid_device *phd=NULL;
     char *pszPath=NULL;
 
-    // Try Pro+ app mode then fall back to Pro+ BL or Pro
-    phdi=hid_enumerate(_usVID,_usPIDP);
+    // Try Special, then Pro+ app mode then fall back to Pro+ BL or Pro
+    phdi=hid_enumerate(_usVID,_usPIDS);
+    if (!phdi)
+        phdi=hid_enumerate(_usVID,_usPIDP);
     if (!phdi)
         phdi=hid_enumerate(_usVID,_usPIDO);
 
@@ -405,6 +408,104 @@ EXTERN FCD_API_EXPORT FCD_API_CALL FCD_MODE_ENUM fcdGetCapsStr(char *caps_str)
     return fcd_mode;
 }
 
+
+
+/** \brief Read device ID block.
+ * \param info pointer to at least 4 bytes of memory
+ * \return FCD_MODE_BL if in bootloader mode, FCD_MODE_APP if not (and no data returned), FCD_MODE_NONE if no FCD detected
+ *
+ * This function reads a special memory address from the FCD which contains
+ * device ID information (4 bytes)
+ */
+EXTERN FCD_API_EXPORT FCD_API_CALL FCD_MODE_ENUM fcdGetDeviceInfo(unsigned char *info)
+{
+    hid_device *phd=NULL;
+    unsigned char aucBufIn[65];
+    unsigned char aucBufOut[65];
+    uint32_t u32AddrStart;
+    FCD_VERSION_ENUM hwvr;
+
+    if (!info)
+        return FCD_MODE_NONE;
+
+    hwvr = fcdGetVersion();
+    switch (hwvr)
+    {
+    case FCD_VERSION_1:
+    case FCD_VERSION_1_1:
+        u32AddrStart = 0x017E8000;	// Taken from source of FCDHIDBL001.exe
+        break;
+    case FCD_VERSION_2:
+        u32AddrStart = 0xBF80F220;	// reversed from binary of FCDHIDBL2.001.exe
+        break;
+    default:
+        return FCD_MODE_NONE;
+    }
+
+    phd = fcdOpen();
+
+    if (phd == NULL)
+    {
+        return FCD_MODE_NONE;
+    }
+
+    // Get byte address range for blocks
+    aucBufOut[0] = 0;
+    aucBufOut[1] = FCD_CMD_BL_GET_BYTE_ADDR_RANGE;
+    hid_write(phd, aucBufOut, 65);
+    memset(aucBufIn, 0xCC, 65);
+    hid_read(phd, aucBufIn, 65);
+
+    if (aucBufIn[0]!=FCD_CMD_BL_GET_BYTE_ADDR_RANGE || aucBufIn[1]!=1)
+    {
+        fcdClose(phd);
+        phd = NULL;
+
+        return FCD_MODE_APP;
+    }
+
+    // Set start address for flash
+    aucBufOut[0] = 0; // Report ID, ignored
+    aucBufOut[1] = FCD_CMD_BL_SET_BYTE_ADDR;
+    aucBufOut[2] = ((unsigned char)u32AddrStart);
+    aucBufOut[3] = ((unsigned char)(u32AddrStart>>8));
+    aucBufOut[4] = ((unsigned char)(u32AddrStart>>16));
+    aucBufOut[5] = ((unsigned char)(u32AddrStart>>24));
+    hid_write(phd, aucBufOut, 65);
+    memset(aucBufIn, 0xCC, 65); // Clear out the response buffer
+    hid_read(phd, aucBufIn, 65);
+
+    if (aucBufIn[0]!=FCD_CMD_BL_SET_BYTE_ADDR || aucBufIn[1]!=1)
+    {
+        fcdClose(phd);
+        phd = NULL;
+
+        return FCD_MODE_APP;
+    }
+
+    // Read block
+    aucBufOut[0] = 0;
+    aucBufOut[1] = FCD_CMD_BL_READ_FLASH_BLOCK;
+    hid_write(phd, aucBufOut, 65);
+    memset(aucBufIn, 0xCC, 65);
+    hid_read(phd, aucBufIn, 65);
+
+    if (aucBufIn[0]!=FCD_CMD_BL_READ_FLASH_BLOCK || aucBufIn[1]!=1)
+    {
+        fcdClose(phd);
+        phd = NULL;
+        return FCD_MODE_APP;
+    }
+    info[0] = aucBufIn[3];
+    info[1] = aucBufIn[4];
+    info[2] = aucBufIn[5];
+    info[3] = aucBufIn[6];
+
+    fcdClose(phd);
+    phd = NULL;
+
+    return FCD_MODE_BL;
+}
 
 
 /** \brief Reset FCD to bootloader mode.
@@ -762,9 +863,9 @@ EXTERN FCD_API_EXPORT FCD_API_CALL FCD_MODE_ENUM fcdBlWriteFirmwareProg(char *pc
     // Write blocks
     aucBufOut[0] = 0; // Report ID, ignored
     aucBufOut[1] = FCD_CMD_BL_WRITE_FLASH_BLOCK;
-    for (u32Addr=u32AddrStart; u32Addr+uBlkSize-1<u32AddrEnd && u32Addr-u32AddrStart+uBlkSize-1<nSize && !bFinished; u32Addr+=uBlkSize)
+    for (u32Addr=u32AddrStart; u32Addr+uBlkSize-1<u32AddrEnd+1 && (u32Addr & 0xFFFFFF)+uBlkSize-1<nSize && !bFinished; u32Addr+=uBlkSize)
     {
-        memcpy(&aucBufOut[3], &pc[u32Addr-u32AddrStart], uBlkSize);
+        memcpy(&aucBufOut[3], &pc[u32Addr & 0xFFFFFF], uBlkSize);
 
         hid_write(phd, aucBufOut, 65);
         memset(aucBufIn, 0xCC, 65); // Clear out the response buffer
@@ -897,7 +998,7 @@ EXTERN FCD_API_EXPORT FCD_API_CALL FCD_MODE_ENUM fcdBlVerifyFirmwareProg(char *p
     // Read blocks
     aucBufOut[0] = 0; // Report ID, ignored
     aucBufOut[1] = FCD_CMD_BL_READ_FLASH_BLOCK;
-    for (u32Addr=u32AddrStart; u32Addr+uBlkSize-1<u32AddrEnd && u32Addr-u32AddrStart+uBlkSize-1<nSize && !bFinished; u32Addr+=uBlkSize)
+    for (u32Addr=u32AddrStart; u32Addr+uBlkSize-1<u32AddrEnd+1 && (u32Addr & 0xFFFFFF)+uBlkSize-1<nSize && !bFinished; u32Addr+=uBlkSize)
     {
         hid_write(phd, aucBufOut, 65);
         memset(aucBufIn, 0xCC, 65); // Clear out the response buffer
@@ -915,7 +1016,7 @@ EXTERN FCD_API_EXPORT FCD_API_CALL FCD_MODE_ENUM fcdBlVerifyFirmwareProg(char *p
             return FCD_MODE_APP;
         }
 
-        if (memcmp(&aucBufIn[2],&pc[u32Addr-u32AddrStart],uBlkSize)!=0)
+        if (memcmp(&aucBufIn[2],&pc[u32Addr & 0xFFFFFF],uBlkSize)!=0)
         {
             bFinished = TRUE;
             fcdClose(phd);
@@ -1037,10 +1138,23 @@ EXTERN FCD_API_EXPORT FCD_API_CALL FCD_MODE_ENUM fcdBlSaveFirmwareProg(FILE *sav
         return FCD_MODE_APP;
     }
 
+    // Pad output file with zeros
+    for (u32Addr=0; u32Addr<(u32AddrStart & 0xFFFFFF); u32Addr++)
+    {
+        if (fwrite(aucBufOut,1,1,saveFile)!=1)
+        {
+            fcdClose(phd);
+            phd = NULL;
+            if (prog)
+                prog(u32AddrStart, u32AddrEnd, u32Addr, PROG_BLK_FAIL);
+            return FCD_MODE_APP;
+        }
+    }
+
     // Read blocks
     aucBufOut[0] = 0; // Report ID, ignored
     aucBufOut[1] = FCD_CMD_BL_READ_FLASH_BLOCK;
-    for (u32Addr=u32AddrStart; u32Addr+uBlkSize-1<u32AddrEnd && !bFinished; u32Addr+=uBlkSize-1)
+    for (u32Addr=u32AddrStart; u32Addr<u32AddrEnd && !bFinished; u32Addr+=uBlkSize)
     {
         hid_write(phd, aucBufOut, 65);
         memset(aucBufIn, 0xCC, 65); // Clear out the response buffer

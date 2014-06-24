@@ -28,6 +28,7 @@ double lnagainvalues[]={-5.0,-2.5,-999,-999,0,2.5,5,7.5,10,12.5,15,17.5,20,25,30
 
 #include "hidapi.h"
 extern const unsigned short _usVID;
+extern const unsigned short _usPIDS;
 extern const unsigned short _usPIDP;
 extern const unsigned short _usPIDO;
 extern int whichdongle;
@@ -40,7 +41,9 @@ void print_list(void)
     //char *pszPath=NULL;
 
     // look for all FCDs
-    phdi=hid_enumerate(_usVID,_usPIDP);
+    phdi=hid_enumerate(_usVID,_usPIDS);
+    if (!phdi)
+        phdi=hid_enumerate(_usVID,_usPIDP);
     if (!phdi)
         phdi=hid_enumerate(_usVID,_usPIDO);
     if (phdi==NULL)
@@ -132,6 +135,7 @@ void print_status()
     FCD_MODE_ENUM stat;
     FCD_VERSION_ENUM hwvr;
     char *hwstr, version[40];
+    unsigned char info[4];
 
     stat = fcdGetMode();
     hwvr = fcdGetVersion();
@@ -155,6 +159,11 @@ void print_status()
     {
         printf("FCD present in bootloader mode.\n");
         printf("FCD hardware version: %s.\n", hwstr);
+        stat = fcdGetDeviceInfo(info);
+        if (FCD_MODE_BL == stat)
+            printf("FCD device info bytes: %02x %02x %02x %02x\n", info[0], info[1], info[2], info[3]);
+        else
+            printf("Unable to read device info bytes\n");
         return;
     }
     else	
@@ -180,7 +189,7 @@ FCD_API_CALL void progress(uint32_t start, uint32_t end, uint32_t position, int 
 {
     uint32_t len = end - start;
     uint32_t pos = position - start;
-    printf("\r%08x: %d%% (%d) ", position, (pos*100)/len, err);
+    printf("\r%08x-%08x: %08x: %d%% (%d) ", start, end, position, (pos*100)/len, err);
     fflush(stdout);
 }
 
@@ -237,7 +246,7 @@ void update_firm(char *firm)
     }
     else if (stat == FCD_MODE_BL)
     {
-        printf("FCD present in bootloader mode - type 'yes' to confirm update: ");
+        printf("FCD present in bootloader mode - type 'yes' to confirm update, or 'no' to verify existing Flash: ");
         fflush(stdout);
         fflush(stdin);
         if (fgets(resp, sizeof(resp), stdin) && strncmp(resp, "yes", 3)==0)
@@ -256,16 +265,15 @@ void update_firm(char *firm)
                 printf("Unable to write firmware to FCD.\n");
                 goto done;
             }
-            printf("verifying..\n");
-            stat = fcdBlVerifyFirmwareProg(fwbuf, fwsiz, progress);
-            if (stat != FCD_MODE_BL)
-            {
+        }
+        printf("verifying..\n");
+        stat = fcdBlVerifyFirmwareProg(fwbuf, fwsiz, progress);
+        if (stat != FCD_MODE_BL)
+        {
                 printf("Unable to verify firmware on FCD.\n");
                 goto done;
-            }
-            printf("done. Resetting to application mode, please check /var/log/[messages|syslog]\n");
-            stat = fcdBlReset();
         }
+        printf("\ndone.\n");
     }
 done:
     if (fwbuf) free(fwbuf);
