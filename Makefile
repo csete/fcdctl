@@ -7,8 +7,5 @@ EXEC = fcdctl
 all:
 	$(CC) $(SOURCE) $(LIBS) -o $(EXEC) -Wall
 
-fcdpp:
-	$(CC) -DFCDPP $(SOURCE) $(LIBS) -o $(EXEC) -Wall
-
 clean:
 	rm -rf *.o *~ $(EXEC) 

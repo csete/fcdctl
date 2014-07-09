@@ -8,11 +8,7 @@
  * See LICENSE for information
  *
  */
-#ifdef FCDPP
-#define PROGRAM_VERSION "0.4.5-fcdpp"
-#else
 #define PROGRAM_VERSION "0.4.5"
-#endif
 
 #include <stdio.h>
 #include <string.h>
@@ -61,6 +57,7 @@ void print_list(void)
         whichdongle=idx;
         printf("  %-3i  %-12s  ",idx, phdi->path);
         int stat = fcdGetMode();
+        int hwvr = fcdGetVersion();
         if (stat == FCD_MODE_NONE) printf("No FCD Detected.\n");
         else if (stat == FCD_MODE_BL) printf("In bootloader mode.\n");
         else {
@@ -76,7 +73,7 @@ void print_list(void)
             // try to find the corresponding audio device, by comparing the USB path to USB paths found under /proc/asound
             char audiopath[16]="(not found)";
             int usb1=-1,usb2=-1;
-            sscanf(phdi->path,"%i:%i",&usb1,&usb2);
+            sscanf(phdi->path,"%x:%x",&usb1,&usb2);
 
             int i;
             for (i=0;i<16;i++) {
@@ -87,18 +84,17 @@ void print_list(void)
                 if (f) {
                     fgets(s,32,f);
                     int u1=0,u2=0;
-                    sscanf(s,"%i/%i",&u1,&u2);
+                    sscanf(s,"%d/%d",&u1,&u2);
                     fclose(f);
                     if (u1==usb1 && u2==usb2) { sprintf(audiopath,"card%i",i); break; }
                 }
             }
 
             // print our findings
-#ifdef FCDPP
-            printf(" %-8s   %11.6f MHz   %s    %s\n", version, (*(int *)freq)/1e6, lnagain ? "enabled" : "disabled", audiopath);
-#else
-            printf(" %-8s   %11.6f MHz   %4g dB     %s\n", version, (*(int *)freq)/1e6, lnagainvalues[lnagain], audiopath);
-#endif
+            if (FCD_VERSION_2==hwvr)
+                printf(" %-8s   %11.6f MHz   %s    %s\n", version, (*(int *)freq)/1e6, lnagain ? "enabled" : "disabled", audiopath);
+            else
+                printf(" %-8s   %11.6f MHz   %4g dB     %s\n", version, (*(int *)freq)/1e6, lnagainvalues[lnagain], audiopath);
         }
         idx++;
         phdi = phdi->next;
@@ -118,12 +114,9 @@ void print_help()
     printf("  -l, --list             List all FCDs in the system\n");
     printf("  -s, --status           Gets FCD current status\n");
     printf("  -f, --frequency <freq> Sets FCD frequency in MHz\n");
-#ifdef FCDPP
-    printf("  -g, --gain <gain>      Enable/disable LNA gain (0 or 1)\n");
-#else
+    printf("  -g, --gain <gain>      Sets LNA gain in dB (V1.x) or enable/disable LNA gain [0/1] (V2.x)\n");
     printf("  -g, --gain <gain>      Sets LNA gain in dB\n");
     printf("  -c, --correction <cor> Sets frequency correction in ppm\n");
-#endif
     printf("  -d, --dump <file>      Saves existing FCD firmware to <file>\n");
     printf("  -u, --update <file>    Updates FCD firmware from <file>\n");
     printf("  -i, --index <index>    Which dongle to show/set (default: 0)\n");
@@ -176,11 +169,10 @@ void print_status()
         stat = fcdAppGetParam(FCD_CMD_APP_GET_FREQ_HZ,b,8);
         printf("FCD frequency: %.6f MHz.\n", (*(int *)b)/1e6);
         stat = fcdAppGetParam(FCD_CMD_APP_GET_LNA_GAIN,b,1);
-#ifdef FCDPP
-        printf("FCD LNA gain: %s.\n", b[0] == 1 ? "enabled" : "disabled");
-#else
-		printf("FCD LNA gain: %g dB.\n", lnagainvalues[b[0]]);
-#endif
+        if (FCD_VERSION_2 == hwvr)
+            printf("FCD LNA gain: %s.\n", b[0] == 1 ? "enabled" : "disabled");
+        else
+            printf("FCD LNA gain: %g dB.\n", lnagainvalues[b[0]]);
         return;
     }
 }
@@ -446,21 +438,20 @@ int main(int argc, char* argv[])
     }
 
     if (gain>-999) {
+        int hwvr = fcdGetVersion();
         unsigned char b=0;
-#ifdef FCDPP
-        b = gain ? 1 : 0;
-#else
-        while (b<sizeof(lnagainvalues)/sizeof(lnagainvalues[0]) && gain>lnagainvalues[b]+1) b++;
-#endif
+        if (FCD_VERSION_2 == hwvr) {
+            b = gain ? 1 : 0;
+        } else {
+            while (b<sizeof(lnagainvalues)/sizeof(lnagainvalues[0]) && gain>lnagainvalues[b]+1) b++;
+        }
         stat = fcdAppSetParam(FCD_CMD_APP_SET_LNA_GAIN,&b,1);
         if (stat == FCD_MODE_NONE) { printf("No FCD Detected.\n"); return 1; }
         else if (stat == FCD_MODE_BL) { printf("FCD in bootloader mode.\n"); return 1; }
-#ifdef FCDPP
-        else printf("LNA gain %s.\n", b ? "enabled" : "disabled");
-#else
-        else printf("LNA gain set to %g dB.\n",lnagainvalues[b]);
-#endif
-
+        else if (FCD_VERSION_2 == hwvr)
+            printf("LNA gain %s.\n", b ? "enabled" : "disabled");
+        else
+            printf("LNA gain set to %g dB.\n",lnagainvalues[b]);
     }
 
     if (dump) dump_firm(dump);
