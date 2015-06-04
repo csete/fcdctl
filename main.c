@@ -44,20 +44,30 @@ void print_list(void)
         puts("No FCD found.\n");
         return;
     }
-
-    puts("  nr   USB path       firmware   frequency         LNA gain   audio device");
-    //      0    0004:0006:02   18.09      1234.567890 MHz   +20 dB     card2
+#ifdef FCDPP
+    puts("nr  USB path      firmware  frequency        gain (lna/mixer/if)  bias-t  audio device");
+    //    0   0004:0006:02  18.09     1234.567890 MHz  on / on / +20 dB     on      card2
+#else
+    puts("nr  USB path      firmware  frequency        LNA gain  audio device");
+    //    0   0004:0006:02  18.09     1234.567890 MHz  +20 dB    card2
+#endif
 
     // iterate over all FCDs found
     int idx=0;
     while (phdi) {
         whichdongle=idx;
-        printf("  %-3i  %-12s  ",idx, phdi->path);
+        printf("%-3i %-12s  ",idx, phdi->path);
         int stat = fcdGetMode();
         if (stat == FCD_MODE_NONE) printf("No FCD Detected.\n");
         else if (stat == FCD_MODE_BL) printf("In bootloader mode.\n");
         else {
             uint8_t lnagain;
+#ifdef FCDPP
+            uint8_t mixergain;
+            uint8_t ifgain;
+            char sfreq[128];
+            uint8_t biast;
+#endif
             uint8_t freq[4];
             char version[20];
 
@@ -65,22 +75,27 @@ void print_list(void)
             fcdGetFwVerStr(version);
             fcdAppGetParam(FCD_CMD_APP_GET_FREQ_HZ,freq,4);
             fcdAppGetParam(FCD_CMD_APP_GET_LNA_GAIN,&lnagain,1);
+#ifdef FCDPP
+            fcdAppGetParam(FCD_CMD_APP_GET_MIXER_GAIN,&mixergain,1);
+            fcdAppGetParam(FCD_CMD_APP_GET_IF_GAIN1,&ifgain,1);
+            fcdAppGetParam(FCD_CMD_APP_GET_BIAS_TEE,&biast,1);
+#endif
 
             // try to find the corresponding audio device, by comparing the USB path to USB paths found under /proc/asound
             char audiopath[16]="(not found)";
             int usb1=-1,usb2=-1;
-            sscanf(phdi->path,"%i:%i",&usb1,&usb2);
+            sscanf(phdi->path,"%x:%x",&usb1,&usb2);
 
             int i;
             for (i=0;i<16;i++) {
-                char s[32];        
+                char s[32];
                 sprintf(s,"/proc/asound/card%i/usbbus",i);
                 FILE *f;
                 f=fopen(s,"r");
                 if (f) {
                     fgets(s,32,f);
                     int u1=0,u2=0;
-                    sscanf(s,"%i/%i",&u1,&u2);
+                    sscanf(s,"%u/%u",&u1,&u2);
                     fclose(f);
                     if (u1==usb1 && u2==usb2) { sprintf(audiopath,"card%i",i); break; }
                 }
@@ -88,9 +103,10 @@ void print_list(void)
 
             // print our findings
 #ifdef FCDPP
-            printf(" %-8s   %11.6f MHz   %s    %s\n", version, (*(int *)freq)/1e6, lnagain ? "enabled" : "disabled", audiopath);
+            sprintf(sfreq, "%.6f MHz", (*(int *)freq)/1e6);
+            printf("%-8s  %-16s %s / %s / %d dB%s%s%s    %s     %s\n", version, sfreq, lnagain ? "on" : "off", mixergain ? "on" : "off", ifgain, lnagain ? " " : "", mixergain ? " "  : "", (ifgain>=10) ? ""  : " ", biast ? "on " : "off", audiopath);
 #else
-            printf(" %-8s   %11.6f MHz   %4g dB     %s\n", version, (*(int *)freq)/1e6, lnagainvalues[lnagain], audiopath);
+            printf("%-8s %11.6f MHz %4g dB     %s\n", version, (*(int *)freq)/1e6, lnagainvalues[lnagain], audiopath);
 #endif
         }
         idx++;
@@ -108,17 +124,20 @@ void print_help()
     printf("This is fcdctl version %s\n", PROGRAM_VERSION);
     printf("\n");
     printf("Usage: %s options [arguments]\n", program_name);
-    printf("  -l, --list             List all FCDs in the system\n");
-    printf("  -s, --status           Gets FCD current status\n");
-    printf("  -f, --frequency <freq> Sets FCD frequency in MHz\n");
+    printf("  -l, --list              List all FCDs in the system\n");
+    printf("  -s, --status            Gets FCD current status\n");
+    printf("  -f, --frequency <freq>  Sets FCD frequency in MHz\n");
 #ifdef FCDPP
-    printf("  -g, --gain <gain>      Enable/disable LNA gain (0 or 1)\n");
+    printf("  -g, --lna-gain <gain>   Enable/disable LNA gain (0 or 1)\n");
+    printf("  -m, --mixer-gain <gain> Enable/disable Mixer gain (0 or 1)\n");
+    printf("  -i, --if-gain <gain>    Sets IF gain (0 to 59) in dB\n");
+    printf("  -b, --bias-t <value>    Sets Bias-T power ((0 or 1)\n");
 #else
-    printf("  -g, --gain <gain>      Sets LNA gain in dB\n");
-    printf("  -c, --correction <cor> Sets frequency correction in ppm\n");
+    printf("  -g, --lna-gain <gain>   Sets LNA gain in dB\n");
+    printf("  -c, --correction <cor>  Sets frequency correction in ppm\n");
 #endif
-    printf("  -i, --index <index>    Which dongle to show/set (default: 0)\n");
-    printf("  -h, --help             Shows this help\n");
+    printf("  -n, --number <number>   Which dongle to show/set (default: 0)\n");
+    printf("  -h, --help              Shows this help\n");
 }
 
 void print_status()
@@ -149,8 +168,12 @@ void print_status()
         stat = fcdAppGetParam(FCD_CMD_APP_GET_LNA_GAIN,b,1);
 #ifdef FCDPP
         printf("FCD LNA gain: %s.\n", b[0] == 1 ? "enabled" : "disabled");
+        stat = fcdAppGetParam(FCD_CMD_APP_GET_MIXER_GAIN,b,1);
+        printf("FCD Mixer gain: %s.\n", b[0] == 1 ? "enabled" : "disabled");
+        stat = fcdAppGetParam(FCD_CMD_APP_GET_IF_GAIN1,b,1);
+        printf("FCD IF gain: %u dB.\n", b[0]);
 #else
-		printf("FCD LNA gain: %g dB.\n", lnagainvalues[b[0]]);
+        printf("FCD LNA gain: %g dB.\n", lnagainvalues[b[0]]);
 #endif
         return;
     }
@@ -162,20 +185,30 @@ int main(int argc, char* argv[])
     int freq = 0;
     double freqf = 0;
     int gain = -999;
+#ifdef FCDPP
+    int mixergain = -999;
+    int ifgain = -999;
+    int biast = -999;
+#endif
     int corr = 0;
     int dolist = 0;
     int dostatus = 0;
 
     /* getopt infrastructure */
     int next_option;
-    const char* const short_options = "slg:f:c:i:h";
+    const char* const short_options = "slg:f:m:i:b:c:n:h";
     const struct option long_options[] =
     {
         { "status", 0, NULL, 's' },
         { "list", 0, NULL, 'l' },
         { "frequency", 1, NULL, 'f' },
-        { "index", 1, NULL, 'i' },
-        { "gain", 1, NULL, 'g' },
+        { "number", 1, NULL, 'n' },
+        { "lna-gain", 1, NULL, 'g' },
+#ifdef FCDPP
+        { "mixer-gain", 1, NULL, 'm' },
+        { "if-gain", 0, NULL, 'i' },
+        { "bias-t", 0, NULL, 'b' },
+#endif
         { "correction", 1, NULL, 'c' },
         { "help", 0, NULL, 'h' }
     };
@@ -216,7 +249,18 @@ int main(int argc, char* argv[])
             case 'g' :
                 gain = atoi(optarg);
                 break;
+#ifdef FCDPP
+            case 'm' :
+                mixergain = atoi(optarg);
+                break;
             case 'i' :
+                ifgain = atoi(optarg);
+                break;
+            case 'b' :
+                biast = atoi(optarg);
+                break;
+#endif
+            case 'n' :
                 whichdongle = atoi(optarg);
                 break;
             case 'c' :
@@ -272,6 +316,36 @@ int main(int argc, char* argv[])
 #endif
 
     }
+
+#ifdef FCDPP
+    if (mixergain>-999) {
+        unsigned char b=0;
+        b = mixergain ? 1 : 0;
+        stat = fcdAppSetParam(FCD_CMD_APP_SET_MIXER_GAIN,&b,1);
+        if (stat == FCD_MODE_NONE) { printf("No FCD Detected.\n"); return 1; }
+        else if (stat == FCD_MODE_BL) { printf("FCD in bootloader mode.\n"); return 1; }
+        else printf("Mixer gain %s.\n", b ? "enabled" : "disabled");
+    }
+
+    if (ifgain>-999) {
+        unsigned char b=0;
+        b = ifgain;
+        stat = fcdAppSetParam(FCD_CMD_APP_SET_IF_GAIN1,&b,1);
+        if (stat == FCD_MODE_NONE) { printf("No FCD Detected.\n"); return 1; }
+        else if (stat == FCD_MODE_BL) { printf("FCD in bootloader mode.\n"); return 1; }
+        else printf("IF gain set to %u dB.\n", b);
+    }
+
+    if (biast>-999) {
+        unsigned char b=0;
+        b = biast ? 1 : 0;
+        stat = fcdAppSetParam(FCD_CMD_APP_SET_BIAS_TEE,&b,1);
+        if (stat == FCD_MODE_NONE) { printf("No FCD Detected.\n"); return 1; }
+        else if (stat == FCD_MODE_BL) { printf("FCD in bootloader mode.\n"); return 1; }
+        else printf("Bias-T %s.\n", b ? "enabled" : "disabled");
+    }
+
+#endif
 
     if (dolist) print_list();
 
