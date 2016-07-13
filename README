@@ -1,16 +1,17 @@
 Simple command line interface for the Funcube Dongle Pro and Pro+.
 
-To build for Funcube Dongle Pro type "make" (without the quotes).
-To build for Funcube Dongle Pro+ type "make fcdpp".
+This fork by Phlash supports both FCD V1.0, FCD V1.1 and FCD V2.0
+in a single program, rather than require specific compilation for
+the FCD V2.0
 
 Requires libusb-1.0-dev.
 
 
 This is a simple command line utility to set the frequency and gain of
-Funcube Dongloe Pro and Pro+ devices.
+Funcube Dongle Pro (V1.0 V1.1) and Pro+ (V2.0) devices.
 
 Written by David Pello EA1IDZ and Alexandru Csete OZ9AEC with
-contributions by Pieter-Tjerk, PA3FWM.
+contributions by Pieter-Tjerk, PA3FWM, Phil Ashby, M6IPX.
 
 Uses FCD HID code from QTHID written by:
 Howard Long G6LVB,
