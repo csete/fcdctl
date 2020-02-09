@@ -196,7 +196,11 @@ int main(int argc, char* argv[])
 
     /* getopt infrastructure */
     int next_option;
+#ifdef FCDPP
     const char* const short_options = "slg:f:m:i:b:c:n:h";
+#else
+    const char* const short_options = "slg:f:c:n:h";
+#endif
     const struct option long_options[] =
     {
         { "status", 0, NULL, 's' },
@@ -206,8 +210,8 @@ int main(int argc, char* argv[])
         { "lna-gain", 1, NULL, 'g' },
 #ifdef FCDPP
         { "mixer-gain", 1, NULL, 'm' },
-        { "if-gain", 0, NULL, 'i' },
-        { "bias-t", 0, NULL, 'b' },
+        { "if-gain", 1, NULL, 'i' },
+        { "bias-t", 1, NULL, 'b' },
 #endif
         { "correction", 1, NULL, 'c' },
         { "help", 0, NULL, 'h' }
